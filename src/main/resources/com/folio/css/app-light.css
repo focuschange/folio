@@ -1,0 +1,330 @@
+/* Light Theme */
+.root {
+    -fx-base: #ffffff;
+    -fx-background: #ffffff;
+    -fx-control-inner-background: #ffffff;
+    -fx-accent: #0066b8;
+    -fx-focus-color: #0066b8;
+    -fx-faint-focus-color: transparent;
+    -fx-text-fill: #333333;
+    -fx-text-background-color: #333333;
+}
+
+.menu-bar {
+    -fx-background-color: #f3f3f3;
+    -fx-padding: 0;
+}
+
+.menu-bar .label {
+    -fx-text-fill: #333333;
+}
+
+.menu-bar .menu:hover, .menu-bar .menu:showing {
+    -fx-background-color: #e0e0e0;
+}
+
+.context-menu {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #d4d4d4;
+}
+
+.menu-item {
+    -fx-background-color: transparent;
+}
+
+.menu-item .label {
+    -fx-text-fill: #333333;
+}
+
+.menu-item:hover, .menu-item:focused {
+    -fx-background-color: #c8ddf2;
+}
+
+.split-pane {
+    -fx-background-color: #ffffff;
+    -fx-padding: 0;
+}
+
+.split-pane-divider {
+    -fx-background-color: #e0e0e0;
+    -fx-padding: 0 1 0 1;
+}
+
+.tab-pane {
+    -fx-background-color: #ffffff;
+}
+
+.tab-pane .tab-header-area {
+    -fx-background-color: #f3f3f3;
+}
+
+.tab-pane .tab-header-background {
+    -fx-background-color: #f3f3f3;
+}
+
+.tab {
+    -fx-background-color: #ececec;
+    -fx-border-color: transparent;
+    -fx-padding: 4 12 4 12;
+}
+
+.tab:selected {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #0066b8 transparent transparent transparent;
+    -fx-border-width: 2 0 0 0;
+}
+
+.tab .tab-label {
+    -fx-text-fill: #6e6e6e;
+}
+
+.tab:selected .tab-label {
+    -fx-text-fill: #333333;
+}
+
+.tab-close-button {
+    -fx-background-color: #6e6e6e;
+}
+
+.tab:selected .tab-close-button {
+    -fx-background-color: #333333;
+}
+
+/* File Tree */
+.file-tree {
+    -fx-background-color: #f3f3f3;
+    -fx-border-color: transparent;
+}
+
+.tree-view {
+    -fx-background-color: #f3f3f3;
+}
+
+.tree-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: #333333;
+    -fx-padding: 2 4 2 4;
+}
+
+.tree-cell:selected {
+    -fx-background-color: #c8ddf2;
+    -fx-text-fill: #333333;
+}
+
+.tree-cell:hover {
+    -fx-background-color: #e8e8e8;
+}
+
+/* Status Bar */
+.status-bar {
+    -fx-background-color: #0066b8;
+    -fx-padding: 2 10 2 10;
+    -fx-alignment: CENTER_LEFT;
+}
+
+.status-bar .label {
+    -fx-text-fill: #ffffff;
+    -fx-font-size: 12px;
+}
+
+.status-bar .separator {
+    -fx-background-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Toolbar */
+.wysiwyg-toolbar {
+    -fx-background-color: #f3f3f3;
+    -fx-padding: 4;
+    -fx-spacing: 2;
+}
+
+.wysiwyg-toolbar .button {
+    -fx-background-color: transparent;
+    -fx-text-fill: #333333;
+    -fx-padding: 4 8 4 8;
+    -fx-border-color: transparent;
+    -fx-cursor: hand;
+}
+
+.wysiwyg-toolbar .button:hover {
+    -fx-background-color: #e0e0e0;
+    -fx-border-radius: 3;
+    -fx-background-radius: 3;
+}
+
+.wysiwyg-toolbar .separator {
+    -fx-background-color: #d4d4d4;
+}
+
+/* Scroll bars */
+.scroll-bar {
+    -fx-background-color: #f3f3f3;
+}
+
+.scroll-bar .thumb {
+    -fx-background-color: #c1c1c1;
+    -fx-background-radius: 4;
+}
+
+.scroll-bar .thumb:hover {
+    -fx-background-color: #a8a8a8;
+}
+
+.scroll-bar .increment-button, .scroll-bar .decrement-button {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.scroll-bar .increment-arrow, .scroll-bar .decrement-arrow {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+    -fx-shape: "";
+}
+
+/* Tooltips */
+.tooltip {
+    -fx-background-color: #f3f3f3;
+    -fx-text-fill: #333333;
+    -fx-border-color: #d4d4d4;
+    -fx-font-size: 12px;
+}
+
+/* Find & Replace Bar */
+.find-bar {
+    -fx-background-color: #f3f3f3;
+    -fx-border-color: transparent transparent #d4d4d4 transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.find-field {
+    -fx-background-color: #ffffff;
+    -fx-text-fill: #333333;
+    -fx-border-color: #cccccc;
+    -fx-border-radius: 3;
+    -fx-background-radius: 3;
+    -fx-padding: 4 8 4 8;
+    -fx-font-size: 13px;
+    -fx-prompt-text-fill: #999999;
+}
+
+.find-field:focused {
+    -fx-border-color: #0066b8;
+}
+
+.find-option {
+    -fx-text-fill: #333333;
+    -fx-font-size: 12px;
+}
+
+.match-count {
+    -fx-text-fill: #333333;
+    -fx-font-size: 12px;
+}
+
+.find-nav-btn, .find-close-btn {
+    -fx-background-color: transparent;
+    -fx-text-fill: #333333;
+    -fx-padding: 2 6 2 6;
+    -fx-cursor: hand;
+    -fx-font-size: 11px;
+}
+
+.find-nav-btn:hover, .find-close-btn:hover {
+    -fx-background-color: #e0e0e0;
+    -fx-background-radius: 3;
+}
+
+.find-action-btn {
+    -fx-background-color: #0066b8;
+    -fx-text-fill: #ffffff;
+    -fx-padding: 4 10 4 10;
+    -fx-background-radius: 3;
+    -fx-cursor: hand;
+    -fx-font-size: 12px;
+}
+
+.find-action-btn:hover {
+    -fx-background-color: #0078d4;
+}
+
+/* File Tree Filter */
+.file-tree-filter {
+    -fx-background-color: #ffffff;
+    -fx-text-fill: #333333;
+    -fx-border-color: #cccccc;
+    -fx-border-radius: 3;
+    -fx-background-radius: 3;
+    -fx-padding: 4 8 4 8;
+    -fx-font-size: 12px;
+    -fx-prompt-text-fill: #999999;
+}
+
+.file-tree-filter:focused {
+    -fx-border-color: #0066b8;
+}
+
+/* Quick Access Dialog */
+.quick-access {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #0066b8;
+    -fx-border-width: 1;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 20, 0, 0, 4);
+}
+
+.quick-access-title {
+    -fx-text-fill: #999999;
+    -fx-font-size: 11px;
+}
+
+.quick-access-field {
+    -fx-background-color: #ffffff;
+    -fx-text-fill: #333333;
+    -fx-border-color: #cccccc;
+    -fx-border-radius: 3;
+    -fx-background-radius: 3;
+    -fx-padding: 6 10 6 10;
+    -fx-font-size: 14px;
+    -fx-prompt-text-fill: #999999;
+}
+
+.quick-access-field:focused {
+    -fx-border-color: #0066b8;
+}
+
+.quick-access-list {
+    -fx-background-color: #ffffff;
+    -fx-border-color: transparent;
+}
+
+.quick-access-list .list-cell {
+    -fx-background-color: transparent;
+    -fx-padding: 4 10 4 10;
+}
+
+.quick-access-list .list-cell:filled:selected {
+    -fx-background-color: #c8ddf2;
+}
+
+.quick-access-list .list-cell:filled:hover {
+    -fx-background-color: #e8e8e8;
+}
+
+.quick-access-item-label {
+    -fx-text-fill: #333333;
+    -fx-font-size: 13px;
+}
+
+.quick-access-item-detail {
+    -fx-text-fill: #999999;
+    -fx-font-size: 11px;
+}
+
+/* Minimap */
+.minimap {
+    -fx-background-color: #f0f0f0;
+    -fx-border-color: #d4d4d4 transparent transparent transparent;
+    -fx-border-width: 0 0 0 1;
+    -fx-cursor: hand;
+}

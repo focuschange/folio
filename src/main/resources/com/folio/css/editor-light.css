@@ -1,0 +1,138 @@
+/* RichTextFX CodeArea Styling - Light Theme */
+.code-area {
+    -fx-font-family: "Menlo", "SF Mono", "Monaco", "Consolas", monospace;
+    -fx-font-size: 15px;
+    -fx-background-color: #ffffff;
+}
+
+.code-area .text {
+    -fx-fill: #24292e;
+    -fx-font-smoothing-type: lcd;
+}
+
+.code-area .caret {
+    -fx-stroke: #000000;
+}
+
+.code-area .selection {
+    -fx-fill: #add6ff;
+}
+
+.code-area .content {
+    -fx-background-color: #ffffff;
+}
+
+.code-area .paragraph-box:has-caret {
+    -fx-background-color: rgba(0, 0, 0, 0.04);
+}
+
+.lineno {
+    -fx-font-family: "Menlo", "SF Mono", "Monaco", monospace;
+    -fx-font-size: 13px;
+    -fx-text-fill: #999999;
+    -fx-background-color: #ffffff;
+    -fx-padding: 0 10 0 6;
+}
+
+/* Markdown Syntax Highlighting */
+.header {
+    -fx-fill: #0550ae;
+    -fx-font-weight: bold;
+    -fx-font-size: 17px;
+}
+
+.bold {
+    -fx-fill: #953800;
+    -fx-font-weight: bold;
+}
+
+.italic {
+    -fx-fill: #953800;
+    -fx-font-style: italic;
+}
+
+.inline-code {
+    -fx-fill: #866118;
+    -fx-font-family: "Menlo", "SF Mono", monospace;
+}
+
+.code-block {
+    -fx-fill: #866118;
+    -fx-font-family: "Menlo", "SF Mono", monospace;
+}
+
+.link {
+    -fx-fill: #116329;
+    -fx-underline: true;
+}
+
+.image {
+    -fx-fill: #116329;
+}
+
+.blockquote {
+    -fx-fill: #3b7a3e;
+    -fx-font-style: italic;
+}
+
+.list {
+    -fx-fill: #6f5e11;
+}
+
+.hr {
+    -fx-fill: #808080;
+}
+
+.strikethrough {
+    -fx-fill: #808080;
+    -fx-strikethrough: true;
+}
+
+/* Language Syntax Highlighting */
+.keyword {
+    -fx-fill: #af00db;
+    -fx-font-weight: bold;
+}
+
+.string {
+    -fx-fill: #a31515;
+}
+
+.comment {
+    -fx-fill: #008000;
+    -fx-font-style: italic;
+}
+
+.number {
+    -fx-fill: #098658;
+}
+
+.annotation {
+    -fx-fill: #795e26;
+}
+
+.tag {
+    -fx-fill: #800000;
+}
+
+/* Virtual flow (CodeArea scrolling container) */
+.virtual-flow {
+    -fx-background-color: #ffffff;
+}
+
+.virtual-flow .scroll-bar:vertical {
+    -fx-pref-width: 10;
+}
+
+.virtual-flow .scroll-bar:horizontal {
+    -fx-pref-height: 10;
+}
+
+.virtual-flow .scroll-bar .thumb {
+    -fx-background-color: #c1c1c1;
+    -fx-background-radius: 5;
+}
+
+.virtual-flow .scroll-bar .thumb:hover {
+    -fx-background-color: #a8a8a8;
+}
