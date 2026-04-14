@@ -24,6 +24,19 @@ public class EditorSettings {
     public int fontSize = 15;
     public int tabSize = 4;
     public boolean wordWrap = true;
+    public String fontFamily = "Menlo";
+    public boolean autoSave = false;
+    public int autoSaveInterval = 30;
+    public int editorPadding = 0;
+    public boolean sidebarVisible = true;
+    public boolean rightPanelVisible = false;
+    public int wordCountGoal = 0;
+
+    // Layout divider positions
+    public double splitDivider0 = 0.18;   // sidebar divider
+    public double splitDivider1 = 0.82;   // right panel divider
+    public boolean gitPanelVisible = false;
+    public boolean outlineVisible = false;
 
     // Session
     public String lastProjectPath = "";
@@ -45,6 +58,17 @@ public class EditorSettings {
             sb.append("  \"fontSize\": ").append(fontSize).append(",\n");
             sb.append("  \"tabSize\": ").append(tabSize).append(",\n");
             sb.append("  \"wordWrap\": ").append(wordWrap).append(",\n");
+            sb.append("  \"fontFamily\": \"").append(escapeJson(fontFamily)).append("\",\n");
+            sb.append("  \"autoSave\": ").append(autoSave).append(",\n");
+            sb.append("  \"autoSaveInterval\": ").append(autoSaveInterval).append(",\n");
+            sb.append("  \"editorPadding\": ").append(editorPadding).append(",\n");
+            sb.append("  \"sidebarVisible\": ").append(sidebarVisible).append(",\n");
+            sb.append("  \"rightPanelVisible\": ").append(rightPanelVisible).append(",\n");
+            sb.append("  \"wordCountGoal\": ").append(wordCountGoal).append(",\n");
+            sb.append("  \"splitDivider0\": ").append(splitDivider0).append(",\n");
+            sb.append("  \"splitDivider1\": ").append(splitDivider1).append(",\n");
+            sb.append("  \"gitPanelVisible\": ").append(gitPanelVisible).append(",\n");
+            sb.append("  \"outlineVisible\": ").append(outlineVisible).append(",\n");
             sb.append("  \"lastProjectPath\": \"").append(escapeJson(lastProjectPath)).append("\",\n");
             sb.append("  \"openFiles\": [");
             for (int i = 0; i < openFiles.size(); i++) {
@@ -80,6 +104,17 @@ public class EditorSettings {
             settings.fontSize = (int) parseDouble(json, "fontSize", 15);
             settings.tabSize = (int) parseDouble(json, "tabSize", 4);
             settings.wordWrap = parseBoolean(json, "wordWrap", true);
+            settings.fontFamily = parseString(json, "fontFamily", "Menlo");
+            settings.autoSave = parseBoolean(json, "autoSave", false);
+            settings.autoSaveInterval = (int) parseDouble(json, "autoSaveInterval", 30);
+            settings.editorPadding = (int) parseDouble(json, "editorPadding", 0);
+            settings.sidebarVisible = parseBoolean(json, "sidebarVisible", true);
+            settings.rightPanelVisible = parseBoolean(json, "rightPanelVisible", false);
+            settings.wordCountGoal = (int) parseDouble(json, "wordCountGoal", 0);
+            settings.splitDivider0 = parseDouble(json, "splitDivider0", 0.18);
+            settings.splitDivider1 = parseDouble(json, "splitDivider1", 0.82);
+            settings.gitPanelVisible = parseBoolean(json, "gitPanelVisible", false);
+            settings.outlineVisible = parseBoolean(json, "outlineVisible", false);
             settings.lastProjectPath = parseString(json, "lastProjectPath", "");
             settings.openFiles = parseStringArray(json, "openFiles");
             settings.recentFiles = parseStringArray(json, "recentFiles");

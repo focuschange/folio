@@ -10,6 +10,7 @@ public class EditorDocument {
     private final ObjectProperty<Path> filePath = new SimpleObjectProperty<>(null);
     private final BooleanProperty dirty = new SimpleBooleanProperty(false);
     private final ObjectProperty<EditorMode> mode = new SimpleObjectProperty<>(EditorMode.TEXT);
+    private final StringProperty encoding = new SimpleStringProperty("UTF-8");
     private String savedContent = "";
 
     public EditorDocument() {}
@@ -37,6 +38,10 @@ public class EditorDocument {
     public EditorMode getMode() { return mode.get(); }
     public void setMode(EditorMode value) { mode.set(value); }
     public ObjectProperty<EditorMode> modeProperty() { return mode; }
+
+    public String getEncoding() { return encoding.get(); }
+    public void setEncoding(String value) { encoding.set(value); }
+    public StringProperty encodingProperty() { return encoding; }
 
     public void markSaved() {
         savedContent = content.get();

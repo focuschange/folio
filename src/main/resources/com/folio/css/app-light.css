@@ -1,17 +1,45 @@
 /* Light Theme */
-.root {
-    -fx-base: #ffffff;
-    -fx-background: #ffffff;
-    -fx-control-inner-background: #ffffff;
-    -fx-accent: #0066b8;
-    -fx-focus-color: #0066b8;
-    -fx-faint-focus-color: transparent;
-    -fx-text-fill: #333333;
-    -fx-text-background-color: #333333;
+
+/* Icon Toolbar */
+.icon-toolbar {
+    -fx-background-color: #f0f0f0;
+    -fx-border-color: transparent transparent #d4d4d4 transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 3 8;
+    -fx-spacing: 2;
 }
 
+.toolbar-btn {
+    -fx-background-color: transparent;
+    -fx-text-fill: #333333;
+    -fx-font-size: 15px;
+    -fx-padding: 4 8;
+    -fx-background-radius: 4;
+    -fx-cursor: hand;
+    -fx-min-width: 32;
+    -fx-min-height: 28;
+}
+
+.toolbar-btn:hover {
+    -fx-background-color: #e0e0e0;
+}
+
+.toolbar-btn:pressed {
+    -fx-background-color: #c8c8c8;
+}
+
+.icon-toolbar .separator {
+    -fx-padding: 0 4;
+}
+
+.icon-toolbar .separator .line {
+    -fx-border-color: #d4d4d4;
+    -fx-border-width: 0 1 0 0;
+}
+
+/* .root is managed by AtlantaFX CupertinoLight theme */
+
 .menu-bar {
-    -fx-background-color: #f3f3f3;
     -fx-padding: 0;
 }
 
@@ -327,4 +355,157 @@
     -fx-border-color: #d4d4d4 transparent transparent transparent;
     -fx-border-width: 0 0 0 1;
     -fx-cursor: hand;
+}
+
+/* Side Panel */
+.side-panel {
+    -fx-background-color: #f3f3f3;
+    -fx-border-color: #d4d4d4 transparent transparent transparent;
+    -fx-border-width: 0 0 0 1;
+}
+
+.side-panel-header {
+    -fx-text-fill: #616161;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+
+.side-panel-list {
+    -fx-background-color: #f3f3f3;
+}
+
+.side-panel-list .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: #333333;
+    -fx-font-size: 13px;
+    -fx-padding: 3 8;
+}
+
+.side-panel-list .list-cell:selected {
+    -fx-background-color: #e0e0e0;
+}
+
+.side-panel-list .list-cell:hover {
+    -fx-background-color: #e8e8e8;
+}
+
+/* Breadcrumb Bar (#23) */
+.breadcrumb-bar {
+    -fx-background-color: #f3f3f3;
+    -fx-border-color: transparent transparent #d4d4d4 transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.breadcrumb-segment {
+    -fx-text-fill: #333333;
+    -fx-font-size: 12px;
+    -fx-padding: 0 2;
+}
+
+.breadcrumb-segment:hover {
+    -fx-text-fill: #000000;
+}
+
+.breadcrumb-separator {
+    -fx-text-fill: #999999;
+    -fx-font-size: 12px;
+}
+
+/* Project Search (#22) */
+.project-search {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #0066b8;
+    -fx-border-width: 1;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 20, 0, 0, 4);
+}
+
+.project-search-title {
+    -fx-text-fill: #666666;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-padding: 4 8;
+}
+
+.project-search-results {
+    -fx-background-color: #ffffff;
+}
+
+.project-search-results .list-cell {
+    -fx-background-color: transparent;
+    -fx-padding: 4 8;
+}
+
+.project-search-results .list-cell:filled:selected {
+    -fx-background-color: #c8ddf2;
+}
+
+.project-search-results .list-cell:filled:hover {
+    -fx-background-color: #e8e8e8;
+}
+
+/* Outline Pane (#25) */
+.outline-pane {
+    -fx-background-color: #f3f3f3;
+    -fx-border-color: #d4d4d4 transparent transparent transparent;
+    -fx-border-width: 0 0 0 1;
+}
+
+.outline-tree {
+    -fx-background-color: #f3f3f3;
+}
+
+.outline-tree .tree-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: #333333;
+    -fx-font-size: 12px;
+    -fx-padding: 2 4;
+}
+
+.outline-tree .tree-cell:selected {
+    -fx-background-color: #c8ddf2;
+    -fx-text-fill: #333333;
+}
+
+.outline-tree .tree-cell:hover {
+    -fx-background-color: #e8e8e8;
+}
+
+/* Git Panel (#28) */
+.git-panel {
+    -fx-background-color: #f3f3f3;
+    -fx-border-color: #d4d4d4 transparent transparent transparent;
+    -fx-border-width: 0 0 0 1;
+}
+
+.git-branch-label {
+    -fx-text-fill: #2e7d32;
+    -fx-font-size: 12px;
+}
+
+.git-btn {
+    -fx-background-color: #0066b8;
+    -fx-text-fill: #ffffff;
+    -fx-padding: 4 10;
+    -fx-background-radius: 3;
+    -fx-cursor: hand;
+    -fx-font-size: 12px;
+}
+
+.git-btn:hover {
+    -fx-background-color: #0078d4;
+}
+
+.git-status-label {
+    -fx-text-fill: #333333;
+    -fx-font-size: 11px;
+}
+
+.git-output {
+    -fx-background-color: #ffffff;
+    -fx-text-fill: #333333;
+    -fx-font-size: 11px;
+    -fx-font-family: monospace;
+    -fx-border-color: #cccccc;
 }

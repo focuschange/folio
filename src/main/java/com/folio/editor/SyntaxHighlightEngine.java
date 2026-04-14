@@ -37,6 +37,8 @@ public class SyntaxHighlightEngine {
                         + "|(?<COMMENT>//[^\n]*|/\\*[\\s\\S]*?\\*/)"
                         + "|(?<NUMBER>\\b\\d+(\\.\\d+)?[fFdDlL]?\\b)"
                         + "|(?<ANNOTATION>@\\w+)"
+                        + "|(?<FUNCTION>\\b[a-z][a-zA-Z0-9_]*(?=\\s*\\())"
+                        + "|(?<TYPE>\\b[A-Z][a-zA-Z0-9_]*\\b)"
         ));
 
         // Python
@@ -52,6 +54,8 @@ public class SyntaxHighlightEngine {
                         + "|(?<COMMENT>#[^\n]*)"
                         + "|(?<NUMBER>\\b\\d+(\\.\\d+)?\\b)"
                         + "|(?<ANNOTATION>@\\w+)"
+                        + "|(?<FUNCTION>\\b[a-z_][a-zA-Z0-9_]*(?=\\s*\\())"
+                        + "|(?<TYPE>\\b[A-Z][a-zA-Z0-9_]*\\b)"
         ));
 
         // JavaScript / TypeScript
@@ -67,6 +71,8 @@ public class SyntaxHighlightEngine {
                         + "|(?<STRING>`[^`]*`|\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*')"
                         + "|(?<COMMENT>//[^\n]*|/\\*[\\s\\S]*?\\*/)"
                         + "|(?<NUMBER>\\b\\d+(\\.\\d+)?\\b)"
+                        + "|(?<FUNCTION>\\b[a-z_$][a-zA-Z0-9_$]*(?=\\s*\\())"
+                        + "|(?<TYPE>\\b[A-Z][a-zA-Z0-9_]*\\b)"
         );
         LANGUAGE_PATTERNS.put("js", jsPattern);
         LANGUAGE_PATTERNS.put("ts", jsPattern);
@@ -174,6 +180,8 @@ public class SyntaxHighlightEngine {
             if (styleClass == null) try { if (matcher.group("NUMBER") != null) styleClass = "number"; } catch (IllegalArgumentException ignored) {}
             if (styleClass == null) try { if (matcher.group("ANNOTATION") != null) styleClass = "annotation"; } catch (IllegalArgumentException ignored) {}
             if (styleClass == null) try { if (matcher.group("TAG") != null) styleClass = "tag"; } catch (IllegalArgumentException ignored) {}
+            if (styleClass == null) try { if (matcher.group("FUNCTION") != null) styleClass = "function"; } catch (IllegalArgumentException ignored) {}
+            if (styleClass == null) try { if (matcher.group("TYPE") != null) styleClass = "type"; } catch (IllegalArgumentException ignored) {}
 
             if (styleClass != null) {
                 builder.add(Collections.emptyList(), matcher.start() - lastEnd);
@@ -196,6 +204,10 @@ public class SyntaxHighlightEngine {
                         // ignore highlighting errors
                     }
                 });
+    }
+
+    public static Set<String> getSupportedExtensions() {
+        return Collections.unmodifiableSet(SUPPORTED_EXTENSIONS);
     }
 
     public static String detectLanguage(String extension) {

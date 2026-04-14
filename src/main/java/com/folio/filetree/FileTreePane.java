@@ -5,18 +5,31 @@ import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.BorderPane;
 
+import com.folio.git.GitService;
+import com.folio.git.GitStatus;
+import com.folio.util.FileIconUtil;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 
 public class FileTreePane extends BorderPane {
 
     private final TreeView<Path> treeView;
     private final TextField filterField;
     private Consumer<Path> onFileOpen;
+
+    // #26 Git status coloring
+    private Map<Path, GitStatus> gitStatusMap = Map.of();
+    private Path rootDirectory;
 
     public FileTreePane() {
         treeView = new TreeView<>();
@@ -36,6 +49,7 @@ public class FileTreePane extends BorderPane {
         });
         BorderPane.setMargin(filterField, new Insets(4));
 
+        // #11 Modern file tree icons + #26 Git status coloring
         treeView.setCellFactory(tv -> {
             TreeCell<Path> cell = new TreeCell<>() {
                 @Override
@@ -45,14 +59,29 @@ public class FileTreePane extends BorderPane {
                         setText(null);
                         setGraphic(null);
                         setContextMenu(null);
+                        setStyle("");
                     } else {
                         String name = item.getFileName() != null
                                 ? item.getFileName().toString()
                                 : item.toString();
                         boolean isDir = Files.isDirectory(item);
-                        String icon = isDir ? "\uD83D\uDCC1 " : getFileIcon(name);
-                        setText(icon + name);
+                        setText(name);
+                        if (isDir) {
+                            TreeItem<Path> treeItem = getTreeItem();
+                            setGraphic(FileIconUtil.getFolderIcon(
+                                    treeItem != null && treeItem.isExpanded()));
+                        } else {
+                            setGraphic(FileIconUtil.getIcon(name));
+                        }
                         setContextMenu(createContextMenu(item, isDir));
+
+                        // #26 Apply git status color
+                        String gitColor = getGitColor(item);
+                        if (gitColor != null) {
+                            setStyle("-fx-text-fill: " + gitColor + ";");
+                        } else {
+                            setStyle("");
+                        }
                     }
                 }
             };
@@ -100,13 +129,17 @@ public class FileTreePane extends BorderPane {
             javafx.scene.input.Clipboard.getSystemClipboard().setContent(content);
         });
 
+        // #49 File info
+        MenuItem fileInfoItem = new MenuItem("File Info...");
+        fileInfoItem.setOnAction(e -> showFileInfo(path));
+
         if (isDir) {
-            menu.getItems().addAll(renameItem, deleteItem, new SeparatorMenuItem(), copyPathItem);
+            menu.getItems().addAll(renameItem, deleteItem, new SeparatorMenuItem(), fileInfoItem, copyPathItem);
         } else {
             MenuItem openItem = new MenuItem("Open");
             openItem.setOnAction(e -> { if (onFileOpen != null) onFileOpen.accept(path); });
             menu.getItems().addAll(openItem, new SeparatorMenuItem(),
-                    renameItem, deleteItem, new SeparatorMenuItem(), copyPathItem);
+                    renameItem, deleteItem, new SeparatorMenuItem(), fileInfoItem, copyPathItem);
         }
 
         return menu;
@@ -198,6 +231,7 @@ public class FileTreePane extends BorderPane {
         }
     }
 
+    // #12 Wildcard filter support
     private boolean filterTree(TreeItem<Path> item, String filter) {
         if (item == null) return false;
         boolean anyChildMatch = false;
@@ -207,8 +241,14 @@ public class FileTreePane extends BorderPane {
         }
         String name = item.getValue().getFileName() != null
                 ? item.getValue().getFileName().toString().toLowerCase() : "";
-        boolean selfMatch = name.contains(filter);
-        // Expand if any child matches
+        boolean selfMatch;
+        if (filter.contains("*") || filter.contains("?")) {
+            // Convert glob to regex
+            String regex = filter.replace(".", "\\.").replace("*", ".*").replace("?", ".");
+            selfMatch = Pattern.matches(regex, name);
+        } else {
+            selfMatch = name.contains(filter);
+        }
         if (anyChildMatch) item.setExpanded(true);
         return selfMatch || anyChildMatch;
     }
@@ -221,9 +261,39 @@ public class FileTreePane extends BorderPane {
     }
 
     public void setRootDirectory(Path directory) {
+        this.rootDirectory = directory;
         FileTreeItem rootItem = new FileTreeItem(directory);
         rootItem.setExpanded(true);
         treeView.setRoot(rootItem);
+        refreshGitStatus();
+    }
+
+    // #26 Git status support
+    public void refreshGitStatus() {
+        if (rootDirectory == null) return;
+        Thread t = new Thread(() -> {
+            GitService gitService = new GitService(rootDirectory);
+            if (gitService.isGitRepository()) {
+                Map<Path, GitStatus> status = gitService.getStatus();
+                javafx.application.Platform.runLater(() -> {
+                    this.gitStatusMap = status;
+                    // Force tree cells to refresh
+                    treeView.refresh();
+                });
+            }
+        }, "git-status");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    private String getGitColor(Path item) {
+        if (gitStatusMap.isEmpty() || rootDirectory == null) return null;
+        try {
+            Path relative = rootDirectory.relativize(item);
+            GitStatus status = gitStatusMap.get(relative);
+            if (status != null) return status.getColor();
+        } catch (IllegalArgumentException ignored) {}
+        return null;
     }
 
     public void setOnFileOpen(Consumer<Path> handler) {
@@ -237,6 +307,37 @@ public class FileTreePane extends BorderPane {
         }
     }
 
+    private void showFileInfo(Path path) {
+        try {
+            BasicFileAttributes attrs = Files.readAttributes(path, BasicFileAttributes.class);
+            DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+                    .withZone(ZoneId.systemDefault());
+
+            long size = attrs.size();
+            String sizeStr;
+            if (size < 1024) sizeStr = size + " B";
+            else if (size < 1024 * 1024) sizeStr = String.format("%.1f KB", size / 1024.0);
+            else sizeStr = String.format("%.1f MB", size / (1024.0 * 1024));
+
+            String info = "Name: " + path.getFileName() + "\n"
+                    + "Path: " + path.toAbsolutePath() + "\n"
+                    + "Size: " + sizeStr + "\n"
+                    + "Type: " + (Files.isDirectory(path) ? "Directory" : "File") + "\n"
+                    + "Created: " + fmt.format(attrs.creationTime().toInstant()) + "\n"
+                    + "Modified: " + fmt.format(attrs.lastModifiedTime().toInstant()) + "\n"
+                    + "Readable: " + Files.isReadable(path) + "\n"
+                    + "Writable: " + Files.isWritable(path);
+
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle("File Info");
+            alert.setHeaderText(path.getFileName().toString());
+            alert.setContentText(info);
+            alert.showAndWait();
+        } catch (IOException e) {
+            showError("Failed to get file info: " + e.getMessage());
+        }
+    }
+
     private void showError(String message) {
         Alert alert = new Alert(Alert.AlertType.ERROR);
         alert.setTitle("Error");
@@ -244,22 +345,5 @@ public class FileTreePane extends BorderPane {
         alert.showAndWait();
     }
 
-    private String getFileIcon(String name) {
-        String lower = name.toLowerCase();
-        if (lower.endsWith(".md") || lower.endsWith(".markdown")) return "\uD83D\uDCDD ";
-        if (lower.endsWith(".java")) return "\u2615 ";
-        if (lower.endsWith(".json")) return "\uD83D\uDCCB ";
-        if (lower.endsWith(".xml")) return "\uD83D\uDCCB ";
-        if (lower.endsWith(".html") || lower.endsWith(".htm")) return "\uD83C\uDF10 ";
-        if (lower.endsWith(".css")) return "\uD83C\uDFA8 ";
-        if (lower.endsWith(".js") || lower.endsWith(".ts")) return "\uD83D\uDFE8 ";
-        if (lower.endsWith(".py")) return "\uD83D\uDC0D ";
-        if (lower.endsWith(".txt")) return "\uD83D\uDCC4 ";
-        if (lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".gif")) return "\uD83D\uDDBC\uFE0F ";
-        if (lower.endsWith(".sh") || lower.endsWith(".bash")) return "\uD83D\uDCBB ";
-        if (lower.endsWith(".sql")) return "\uD83D\uDDC3\uFE0F ";
-        if (lower.endsWith(".yaml") || lower.endsWith(".yml")) return "\u2699\uFE0F ";
-        if (lower.endsWith(".gradle") || lower.endsWith(".kts")) return "\uD83D\uDC18 ";
-        return "\uD83D\uDCC4 ";
-    }
+    // Icons now handled by FileIconUtil
 }

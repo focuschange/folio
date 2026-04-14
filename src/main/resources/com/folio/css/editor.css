@@ -23,15 +23,17 @@
 }
 
 .code-area .paragraph-box:has-caret {
-    -fx-background-color: rgba(255, 255, 255, 0.06);
+    -fx-background-color: rgba(255, 255, 255, 0.08);
 }
 
 .lineno {
     -fx-font-family: "Menlo", "SF Mono", "Monaco", monospace;
     -fx-font-size: 13px;
     -fx-text-fill: #858585;
-    -fx-background-color: #1e1e1e;
+    -fx-background-color: #1a1a2e;
     -fx-padding: 0 10 0 6;
+    -fx-border-color: transparent #333333 transparent transparent;
+    -fx-border-width: 0 1 0 0;
 }
 
 /* Markdown Syntax Highlighting */
@@ -113,6 +115,20 @@
 
 .tag {
     -fx-fill: #569cd6;
+}
+
+.function {
+    -fx-fill: #dcdcaa;
+}
+
+.type {
+    -fx-fill: #4ec9b0;
+}
+
+.bracket-match {
+    -fx-fill: #ffffff;
+    -fx-font-weight: bold;
+    -fx-underline: true;
 }
 
 /* Virtual flow (CodeArea scrolling container) */

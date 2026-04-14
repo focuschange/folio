@@ -25,6 +25,7 @@ javafx {
 dependencies {
     implementation("org.fxmisc.richtext:richtextfx:0.11.3")
     implementation("com.vladsch.flexmark:flexmark-all:0.64.8")
+    implementation("io.github.mkpaz:atlantafx-base:2.1.0")
     implementation("org.slf4j:slf4j-api:2.0.12")
     implementation("ch.qos.logback:logback-classic:1.5.3")
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")

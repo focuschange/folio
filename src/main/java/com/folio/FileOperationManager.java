@@ -10,6 +10,7 @@ import javafx.stage.Stage;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,6 +23,7 @@ public class FileOperationManager {
     private final EditorSettings settings;
     private Path currentProjectRoot;
     private Runnable onFileChanged;
+    private java.util.function.Consumer<Path> onProjectRootChanged;
 
     public FileOperationManager(Stage stage, EditorTabManager tabManager,
                                 FileTreePane fileTreePane, EditorSettings settings) {
@@ -33,6 +35,10 @@ public class FileOperationManager {
 
     public void setOnFileChanged(Runnable handler) {
         this.onFileChanged = handler;
+    }
+
+    public void setOnProjectRootChanged(java.util.function.Consumer<Path> handler) {
+        this.onProjectRootChanged = handler;
     }
 
     public Path getCurrentProjectRoot() {
@@ -72,12 +78,21 @@ public class FileOperationManager {
         currentProjectRoot = path;
         fileTreePane.setRootDirectory(path);
         stage.setTitle("Folio - " + path.getFileName());
+        if (onProjectRootChanged != null) {
+            onProjectRootChanged.accept(path);
+        }
     }
 
     public void openFilePath(Path path) {
+        openFilePath(path, "UTF-8");
+    }
+
+    public void openFilePath(Path path, String encoding) {
         try {
-            String content = Files.readString(path, StandardCharsets.UTF_8);
+            Charset charset = Charset.forName(encoding);
+            String content = Files.readString(path, charset);
             EditorDocument doc = new EditorDocument(path, content);
+            doc.setEncoding(encoding);
             tabManager.openDocument(doc);
             settings.addRecentFile(path.toAbsolutePath().toString());
             if (onFileChanged != null) onFileChanged.run();
@@ -99,12 +114,29 @@ public class FileOperationManager {
         }
 
         try {
-            Files.writeString(doc.getFilePath(), doc.getContent(), StandardCharsets.UTF_8);
+            Charset charset = Charset.forName(doc.getEncoding());
+            Files.writeString(doc.getFilePath(), doc.getContent(), charset);
             doc.markSaved();
             if (onFileChanged != null) onFileChanged.run();
         } catch (IOException e) {
             showError("Failed to save file", e.getMessage());
         }
+    }
+
+    // #38 Auto-save: save all dirty documents that have file paths
+    public void autoSaveAll() {
+        for (EditorDocument doc : tabManager.getAllDocuments()) {
+            if (doc.isDirty() && doc.getFilePath() != null) {
+                try {
+                    Charset charset = Charset.forName(doc.getEncoding());
+                    Files.writeString(doc.getFilePath(), doc.getContent(), charset);
+                    doc.markSaved();
+                } catch (IOException e) {
+                    System.err.println("Auto-save failed for " + doc.getFilePath() + ": " + e.getMessage());
+                }
+            }
+        }
+        if (onFileChanged != null) onFileChanged.run();
     }
 
     public void saveFileAs() {
@@ -129,7 +161,8 @@ public class FileOperationManager {
         File file = fileChooser.showSaveDialog(stage);
         if (file != null) {
             try {
-                Files.writeString(file.toPath(), doc.getContent(), StandardCharsets.UTF_8);
+                Charset charset = Charset.forName(doc.getEncoding());
+                Files.writeString(file.toPath(), doc.getContent(), charset);
                 doc.setFilePath(file.toPath());
                 doc.markSaved();
                 if (onFileChanged != null) onFileChanged.run();
