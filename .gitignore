@@ -19,3 +19,14 @@ Thumbs.db
 
 # App
 *.log
+
+# Tauri/Web
+web/node_modules/
+web/dist/
+web/src-tauri/target/
+web/src-tauri/.cargo/
+
+# Root level (stray npm artifacts)
+node_modules/
+package-lock.json
+package.json

@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: local('JetBrains Mono');
+}
+
+:root {
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: #18181b;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #52525b;
+}
+
+.light ::-webkit-scrollbar-track {
+  background: #f4f4f5;
+}
+
+.light ::-webkit-scrollbar-thumb {
+  background: #d4d4d8;
+  border-radius: 4px;
+}
+
+.light ::-webkit-scrollbar-thumb:hover {
+  background: #a1a1aa;
+}
+
+/* Monaco editor overrides */
+.monaco-editor .margin {
+  background: transparent !important;
+}
+
+/* Markdown preview styles */
+.markdown-body {
+  line-height: 1.7;
+}
+
+.markdown-body h1 { font-size: 2em; font-weight: 700; margin: 0.67em 0; border-bottom: 1px solid #3f3f46; padding-bottom: 0.3em; }
+.markdown-body h2 { font-size: 1.5em; font-weight: 600; margin: 0.83em 0; border-bottom: 1px solid #3f3f46; padding-bottom: 0.3em; }
+.markdown-body h3 { font-size: 1.25em; font-weight: 600; margin: 1em 0; }
+.markdown-body h4 { font-size: 1em; font-weight: 600; margin: 1em 0; }
+.markdown-body p { margin: 0.5em 0; }
+.markdown-body ul, .markdown-body ol { padding-left: 2em; margin: 0.5em 0; }
+.markdown-body li { margin: 0.25em 0; }
+.markdown-body blockquote { border-left: 4px solid #3b82f6; padding: 0.5em 1em; margin: 0.5em 0; opacity: 0.9; }
+.markdown-body pre { border-radius: 6px; padding: 1em; overflow-x: auto; margin: 0.5em 0; }
+.markdown-body code { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 0.9em; }
+.markdown-body table { border-collapse: collapse; width: 100%; margin: 0.5em 0; }
+.markdown-body th, .markdown-body td { border: 1px solid #3f3f46; padding: 0.5em 1em; text-align: left; }
+.markdown-body th { font-weight: 600; }
+.markdown-body img { max-width: 100%; }
+.markdown-body a { color: #3b82f6; text-decoration: underline; }
+.markdown-body hr { border: none; border-top: 1px solid #3f3f46; margin: 1.5em 0; }
+
+/* KaTeX */
+.katex-display { overflow-x: auto; }
+
+/* Resizable panel handles */
+[data-panel-group-direction="horizontal"] > [data-resize-handle-active] {
+  background-color: #3b82f6 !important;
+}
+[data-panel-group-direction="vertical"] > [data-resize-handle-active] {
+  background-color: #3b82f6 !important;
+}
