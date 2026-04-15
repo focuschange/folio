@@ -24,3 +24,26 @@ pub fn save_settings(settings_json: String) -> Result<(), String> {
     }
     fs::write(&path, settings_json).map_err(|e| format!("Failed to save settings: {}", e))
 }
+
+#[tauri::command]
+pub fn save_session(session_json: String) -> Result<(), String> {
+    let dir = dirs::home_dir()
+        .ok_or_else(|| "Cannot determine home directory".to_string())?
+        .join(".folio");
+    fs::create_dir_all(&dir).map_err(|e| format!("Failed to create session directory: {}", e))?;
+    fs::write(dir.join("session.json"), session_json)
+        .map_err(|e| format!("Failed to save session: {}", e))
+}
+
+#[tauri::command]
+pub fn load_session() -> Result<String, String> {
+    let path = dirs::home_dir()
+        .ok_or_else(|| "Cannot determine home directory".to_string())?
+        .join(".folio")
+        .join("session.json");
+    if path.exists() {
+        fs::read_to_string(&path).map_err(|e| format!("Failed to read session: {}", e))
+    } else {
+        Ok("{}".to_string())
+    }
+}

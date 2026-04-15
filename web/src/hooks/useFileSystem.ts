@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useAppStore } from '../store/useAppStore';
+import { isEditableFile } from '../utils/fileIcons';
 import type { FileEntry } from '../types';
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -61,22 +62,20 @@ const mockFileContents: Record<string, string> = {
 };
 
 export function useFileSystem() {
-  const { setFileTree, setProjectRoot, openTab } = useAppStore();
+  const { addProjectRoot, openTab } = useAppStore();
 
   const loadDirectory = useCallback(async (dirPath: string) => {
     if (isTauri) {
       try {
         const tree = await tauriInvoke<FileEntry[]>('list_directory', { path: dirPath });
-        setFileTree(tree);
-        setProjectRoot(dirPath);
+        addProjectRoot(dirPath, tree);
       } catch (e) {
         console.error('Failed to list directory:', e);
       }
     } else {
-      setFileTree(mockFileTree);
-      setProjectRoot('/project');
+      addProjectRoot('/project', mockFileTree);
     }
-  }, [setFileTree, setProjectRoot]);
+  }, [addProjectRoot]);
 
   const readFile = useCallback(async (filePath: string): Promise<string> => {
     if (isTauri) {
@@ -105,6 +104,7 @@ export function useFileSystem() {
   }, []);
 
   const openFileInEditor = useCallback(async (path: string, name: string) => {
+    if (!isEditableFile(name)) return;
     const content = await readFile(path);
     openTab(path, name, content);
   }, [readFile, openTab]);

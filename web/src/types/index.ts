@@ -43,6 +43,29 @@ export interface GitLogEntry {
   message: string;
 }
 
+export type RightTab = 'outline' | 'files' | 'git' | 'info' | 'todos' | 'toc' | 'links' | 'recent';
+
+export interface TodoItem {
+  type: 'TODO' | 'FIXME' | 'HACK';
+  path: string;
+  lineNumber: number;
+  lineContent: string;
+}
+
+export interface LinkInfo {
+  text: string;
+  url: string;
+  lineNumber: number;
+  kind: 'markdown' | 'html' | 'raw';
+}
+
+export interface OutlineSymbol {
+  name: string;
+  kind: 'function' | 'class' | 'interface' | 'heading' | 'variable' | 'method' | 'enum';
+  line: number;
+  children?: OutlineSymbol[];
+}
+
 export interface SearchResult {
   path: string;
   lineNumber: number;
@@ -84,6 +107,33 @@ export interface CommandOutput {
   stdout: string;
   stderr: string;
   exitCode: number;
+}
+
+export interface SessionState {
+  tabs: Array<{
+    id: string;
+    path: string;
+    name: string;
+    content: string;
+    language: string;
+    dirty: boolean;
+    pinned: boolean;
+    encoding: string;
+    cursorLine?: number;
+    cursorColumn?: number;
+  }>;
+  activeTabId: string | null;
+  projectRoots: string[];
+  sidebarVisible: boolean;
+  rightPanelVisible: boolean;
+  gitPanelVisible: boolean;
+  terminalVisible: boolean;
+  outlineVisible: boolean;
+  activeRightTab: RightTab;
+  expandedDirs: string[];
+  sidebarWidth: number;
+  rightWidth: number;
+  terminalHeight: number;
 }
 
 export const defaultSettings: AppSettings = {

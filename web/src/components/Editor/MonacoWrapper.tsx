@@ -1,7 +1,9 @@
 import { useRef, useCallback, useEffect } from 'react';
 import Editor, { type OnMount } from '@monaco-editor/react';
+import * as monaco from 'monaco-editor';
 import { useAppStore } from '../../store/useAppStore';
 import { setMonacoEditorRef } from '../Layout/Toolbar';
+import { formatCode, formatSelection, isFormatSupported } from '../../utils/formatter';
 import type { EditorTab } from '../../types';
 
 interface MonacoWrapperProps {
@@ -20,6 +22,62 @@ export function MonacoWrapper({ tab }: MonacoWrapperProps) {
 
     editor.onDidChangeCursorPosition((e) => {
       updateTabCursor(tab.id, e.position.lineNumber, e.position.column);
+    });
+
+    // Register custom Format Document action — appears in right-click context menu
+    editor.addAction({
+      id: 'folio.format-document',
+      label: 'Format Document',
+      keybindings: [monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF],
+      contextMenuGroupId: '1_modification',
+      contextMenuOrder: 1.5,
+      run: async (ed) => {
+        const activeTab = useAppStore.getState().tabs.find(t => t.id === useAppStore.getState().activeTabId);
+        const lang = activeTab?.language ?? 'plaintext';
+        if (isFormatSupported(lang)) {
+          const result = await formatCode(ed.getValue(), lang);
+          if (result.formatted) {
+            const model = ed.getModel();
+            if (model) {
+              ed.executeEdits('format-document', [{
+                range: model.getFullModelRange(),
+                text: result.code,
+              }]);
+            }
+          }
+        } else {
+          ed.trigger('context-menu', 'editor.action.formatDocument', null);
+        }
+      },
+    });
+
+    // Register custom Format Selection action
+    editor.addAction({
+      id: 'folio.format-selection',
+      label: 'Format Selection',
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF],
+      contextMenuGroupId: '1_modification',
+      contextMenuOrder: 1.6,
+      precondition: 'editorHasSelection',
+      run: async (ed) => {
+        const activeTab = useAppStore.getState().tabs.find(t => t.id === useAppStore.getState().activeTabId);
+        const lang = activeTab?.language ?? 'plaintext';
+        const sel = ed.getSelection();
+        const model = ed.getModel();
+        if (!sel || !model) return;
+        const selectedText = model.getValueInRange(sel);
+        if (isFormatSupported(lang)) {
+          const result = await formatSelection(selectedText, lang);
+          if (result.formatted) {
+            ed.executeEdits('format-selection', [{
+              range: sel,
+              text: result.code,
+            }]);
+          }
+        } else {
+          ed.trigger('context-menu', 'editor.action.formatSelection', null);
+        }
+      },
     });
 
     editor.focus();
@@ -80,8 +138,9 @@ export function MonacoWrapper({ tab }: MonacoWrapperProps) {
           links: true,
           colorDecorators: true,
           guides: {
-            bracketPairs: true,
             indentation: true,
+            bracketPairs: true,
+            highlightActiveIndentation: true,
           },
         }}
         loading={

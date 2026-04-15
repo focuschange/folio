@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { EditorTab, AppSettings, FileEntry, GitStatusEntry, GitLogEntry } from '../types';
+import type { EditorTab, AppSettings, FileEntry, GitStatusEntry, GitLogEntry, SessionState, RightTab, TodoItem, LinkInfo } from '../types';
 import { defaultSettings } from '../types';
 import { getLanguageFromPath } from '../utils/languages';
 
@@ -11,6 +11,7 @@ interface AppState {
   // File tree
   fileTree: FileEntry[];
   projectRoot: string | null;
+  projectRoots: string[];
   expandedDirs: Set<string>;
   selectedPath: string | null;
 
@@ -24,14 +25,24 @@ interface AppState {
   gitPanelVisible: boolean;
   terminalVisible: boolean;
   outlineVisible: boolean;
+  activeRightTab: RightTab;
   zenMode: boolean;
   searchVisible: boolean;
   settingsVisible: boolean;
+
+  // Panel sizes
+  sidebarWidth: number;
+  rightWidth: number;
+  terminalHeight: number;
 
   // Git
   gitBranch: string;
   gitStatus: GitStatusEntry[];
   gitLog: GitLogEntry[];
+
+  // Right panel data
+  todoItems: TodoItem[];
+  fileLinks: LinkInfo[];
 
   // Settings
   settings: AppSettings;
@@ -48,12 +59,18 @@ interface AppState {
   closeOtherTabs: (id: string) => void;
   closeAllTabs: () => void;
   updateTabCursor: (id: string, line: number, column: number) => void;
+  setTabEncoding: (id: string, encoding: string) => void;
+  setTabLanguage: (id: string, language: string) => void;
 
   // Actions - File tree
   setFileTree: (tree: FileEntry[]) => void;
   setProjectRoot: (root: string | null) => void;
   toggleDir: (path: string) => void;
   setSelectedPath: (path: string | null) => void;
+  collapseAllDirs: () => void;
+  expandAllDirs: () => void;
+  addProjectRoot: (path: string, tree: FileEntry[]) => void;
+  removeProjectRoot: (path: string) => void;
 
   // Actions - UI
   toggleSidebar: () => void;
@@ -64,6 +81,8 @@ interface AppState {
   toggleZenMode: () => void;
   toggleSearch: () => void;
   toggleSettings: () => void;
+  setActiveRightTab: (tab: RightTab) => void;
+  showRightPanelTab: (tab: RightTab) => void;
   setSearchVisible: (v: boolean) => void;
   setSettingsVisible: (v: boolean) => void;
 
@@ -71,10 +90,22 @@ interface AppState {
   setGitBranch: (branch: string) => void;
   setGitStatus: (status: GitStatusEntry[]) => void;
   setGitLog: (log: GitLogEntry[]) => void;
+  setTodoItems: (items: TodoItem[]) => void;
+  setFileLinks: (links: LinkInfo[]) => void;
+  clearRecentFiles: () => void;
 
   // Actions - Settings
   updateSettings: (partial: Partial<AppSettings>) => void;
   setSettings: (settings: AppSettings) => void;
+
+  // Actions - Panel sizes
+  setSidebarWidth: (w: number) => void;
+  setRightWidth: (w: number) => void;
+  setTerminalHeight: (h: number) => void;
+
+  // Actions - Session
+  restoreSession: (session: SessionState) => void;
+  getSessionState: () => SessionState;
 
   // Actions - Recent files
   addRecentFile: (path: string) => void;
@@ -86,6 +117,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   activeTabId: null,
   fileTree: [],
   projectRoot: null,
+  projectRoots: [],
   expandedDirs: new Set<string>(),
   selectedPath: null,
   openFiles: [],
@@ -95,12 +127,18 @@ export const useAppStore = create<AppState>((set, get) => ({
   gitPanelVisible: false,
   terminalVisible: false,
   outlineVisible: false,
+  activeRightTab: 'files' as RightTab,
   zenMode: false,
   searchVisible: false,
   settingsVisible: false,
+  sidebarWidth: 260,
+  rightWidth: 200,
+  terminalHeight: 200,
   gitBranch: '',
   gitStatus: [],
   gitLog: [],
+  todoItems: [],
+  fileLinks: [],
   settings: defaultSettings,
 
   // Tab actions
@@ -199,6 +237,20 @@ export const useAppStore = create<AppState>((set, get) => ({
       ),
     })),
 
+  setTabEncoding: (id, encoding) =>
+    set(state => ({
+      tabs: state.tabs.map(t =>
+        t.id === id ? { ...t, encoding } : t
+      ),
+    })),
+
+  setTabLanguage: (id, language) =>
+    set(state => ({
+      tabs: state.tabs.map(t =>
+        t.id === id ? { ...t, language } : t
+      ),
+    })),
+
   // File tree actions
   setFileTree: (tree) => set({ fileTree: tree }),
   setProjectRoot: (root) => set({ projectRoot: root }),
@@ -213,12 +265,75 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setSelectedPath: (path) => set({ selectedPath: path }),
 
+  collapseAllDirs: () => set({ expandedDirs: new Set<string>() }),
+
+  expandAllDirs: () => {
+    const state = get();
+    const dirs = new Set<string>();
+    const collectDirs = (entries: FileEntry[]) => {
+      for (const e of entries) {
+        if (e.isDir) {
+          dirs.add(e.path);
+          if (e.children) collectDirs(e.children);
+        }
+      }
+    };
+    collectDirs(state.fileTree);
+    set({ expandedDirs: dirs });
+  },
+
+  addProjectRoot: (path, tree) => {
+    const state = get();
+    const lastSegment = path.split('/').pop() || path;
+    const rootEntry: FileEntry = { name: lastSegment, path, isDir: true, children: tree };
+    const newExpanded = new Set(state.expandedDirs);
+    newExpanded.add(path);
+
+    const existsInTree = state.fileTree.some(e => e.path === path);
+    const existsInRoots = state.projectRoots.includes(path);
+
+    if (existsInTree) {
+      // Replace existing entry in fileTree
+      const newFileTree = state.fileTree.map(e => e.path === path ? rootEntry : e);
+      set({ fileTree: newFileTree, projectRoot: path, expandedDirs: newExpanded });
+    } else {
+      // Append to fileTree (even if path is already in projectRoots)
+      set({
+        projectRoots: existsInRoots ? state.projectRoots : [...state.projectRoots, path],
+        fileTree: [...state.fileTree, rootEntry],
+        projectRoot: path,
+        expandedDirs: newExpanded,
+      });
+    }
+  },
+
+  removeProjectRoot: (path) => {
+    const state = get();
+    const newRoots = state.projectRoots.filter(r => r !== path);
+    const newTree = state.fileTree.filter(e => e.path !== path);
+    set({
+      projectRoots: newRoots,
+      fileTree: newTree,
+      projectRoot: newTree.length === 0 ? null : state.projectRoot === path ? (newRoots[0] ?? null) : state.projectRoot,
+    });
+  },
+
   // UI toggles
   toggleSidebar: () => set(state => ({ sidebarVisible: !state.sidebarVisible })),
   toggleRightPanel: () => set(state => ({ rightPanelVisible: !state.rightPanelVisible })),
-  toggleGitPanel: () => set(state => ({ gitPanelVisible: !state.gitPanelVisible })),
+  toggleGitPanel: () => set(state => {
+    if (state.activeRightTab === 'git' && state.rightPanelVisible) {
+      return { rightPanelVisible: false, gitPanelVisible: false };
+    }
+    return { activeRightTab: 'git' as RightTab, rightPanelVisible: true, gitPanelVisible: true, outlineVisible: false };
+  }),
   toggleTerminal: () => set(state => ({ terminalVisible: !state.terminalVisible })),
-  toggleOutline: () => set(state => ({ outlineVisible: !state.outlineVisible })),
+  toggleOutline: () => set(state => {
+    if (state.activeRightTab === 'outline' && state.rightPanelVisible) {
+      return { rightPanelVisible: false, outlineVisible: false };
+    }
+    return { activeRightTab: 'outline' as RightTab, rightPanelVisible: true, outlineVisible: true, gitPanelVisible: false };
+  }),
   toggleZenMode: () =>
     set(state => ({
       zenMode: !state.zenMode,
@@ -227,6 +342,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       terminalVisible: false,
       gitPanelVisible: false,
     })),
+  setActiveRightTab: (tab) => set({ activeRightTab: tab }),
+  showRightPanelTab: (tab) => set({ activeRightTab: tab, rightPanelVisible: true }),
   toggleSearch: () => set(state => ({ searchVisible: !state.searchVisible })),
   toggleSettings: () => set(state => ({ settingsVisible: !state.settingsVisible })),
   setSearchVisible: (v) => set({ searchVisible: v }),
@@ -236,11 +353,66 @@ export const useAppStore = create<AppState>((set, get) => ({
   setGitBranch: (branch) => set({ gitBranch: branch }),
   setGitStatus: (status) => set({ gitStatus: status }),
   setGitLog: (log) => set({ gitLog: log }),
+  setTodoItems: (items) => set({ todoItems: items }),
+  setFileLinks: (links) => set({ fileLinks: links }),
+  clearRecentFiles: () => set({ recentFiles: [] }),
 
   // Settings
   updateSettings: (partial) =>
     set(state => ({ settings: { ...state.settings, ...partial } })),
   setSettings: (settings) => set({ settings }),
+
+  // Panel sizes
+  setSidebarWidth: (w) => set({ sidebarWidth: w }),
+  setRightWidth: (w) => set({ rightWidth: w }),
+  setTerminalHeight: (h) => set({ terminalHeight: h }),
+
+  // Session
+  restoreSession: (session) => set({
+    tabs: session.tabs ?? [],
+    activeTabId: session.activeTabId ?? null,
+    projectRoots: session.projectRoots ?? [],
+    sidebarVisible: session.sidebarVisible ?? true,
+    rightPanelVisible: session.rightPanelVisible ?? false,
+    gitPanelVisible: session.gitPanelVisible ?? false,
+    terminalVisible: session.terminalVisible ?? false,
+    outlineVisible: session.outlineVisible ?? false,
+    activeRightTab: session.activeRightTab ?? 'files' as RightTab,
+    expandedDirs: new Set(session.expandedDirs ?? []),
+    sidebarWidth: session.sidebarWidth ?? 260,
+    rightWidth: session.rightWidth ?? 200,
+    terminalHeight: session.terminalHeight ?? 200,
+  }),
+
+  getSessionState: () => {
+    const s = get();
+    return {
+      tabs: s.tabs.map(t => ({
+        id: t.id,
+        path: t.path,
+        name: t.name,
+        content: t.content,
+        language: t.language,
+        dirty: t.dirty,
+        pinned: t.pinned,
+        encoding: t.encoding,
+        cursorLine: t.cursorLine,
+        cursorColumn: t.cursorColumn,
+      })),
+      activeTabId: s.activeTabId,
+      projectRoots: s.projectRoots,
+      sidebarVisible: s.sidebarVisible,
+      rightPanelVisible: s.rightPanelVisible,
+      gitPanelVisible: s.gitPanelVisible,
+      terminalVisible: s.terminalVisible,
+      outlineVisible: s.outlineVisible,
+      activeRightTab: s.activeRightTab,
+      expandedDirs: Array.from(s.expandedDirs),
+      sidebarWidth: s.sidebarWidth,
+      rightWidth: s.rightWidth,
+      terminalHeight: s.terminalHeight,
+    };
+  },
 
   // Recent files
   addRecentFile: (path) =>

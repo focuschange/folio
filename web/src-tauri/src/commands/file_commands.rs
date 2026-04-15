@@ -4,6 +4,11 @@ use std::path::Path;
 use std::time::UNIX_EPOCH;
 use tauri_plugin_dialog::DialogExt;
 
+#[tauri::command]
+pub fn js_log(msg: String) {
+    eprintln!("[JS] {}", msg);
+}
+
 #[derive(Serialize, Clone)]
 pub struct FileEntry {
     pub name: String,
@@ -50,13 +55,25 @@ pub fn read_file(path: String) -> Result<String, String> {
 
 #[tauri::command]
 pub fn write_file(path: String, content: String, _encoding: Option<String>) -> Result<(), String> {
+    eprintln!("[write_file] called: path={} content_len={}", path, content.len());
     // Ensure parent directory exists
     if let Some(parent) = Path::new(&path).parent() {
         fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create parent directory: {}", e))?;
+            .map_err(|e| {
+                eprintln!("[write_file] mkdir failed: {}", e);
+                format!("Failed to create parent directory: {}", e)
+            })?;
     }
 
-    fs::write(&path, content.as_bytes()).map_err(|e| format!("Failed to write file: {}", e))
+    let result = fs::write(&path, content.as_bytes())
+        .map_err(|e| {
+            eprintln!("[write_file] write failed: {}", e);
+            format!("Failed to write file: {}", e)
+        });
+    if result.is_ok() {
+        eprintln!("[write_file] success: {}", path);
+    }
+    result
 }
 
 #[tauri::command]
@@ -293,6 +310,19 @@ fn search_recursive(
             }
         }
     }
+}
+
+#[tauri::command]
+pub async fn save_file_dialog(app: tauri::AppHandle, default_name: Option<String>) -> Result<Option<String>, String> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    let mut builder = app.dialog().file().set_title("Save File");
+    if let Some(name) = default_name {
+        builder = builder.set_file_name(&name);
+    }
+    builder.save_file(move |path| {
+        let _ = tx.send(path.map(|p| format!("{}", p)));
+    });
+    rx.await.map_err(|e| format!("Dialog cancelled: {}", e))
 }
 
 #[tauri::command]

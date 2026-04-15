@@ -122,3 +122,64 @@ export function isMarkdown(filePath: string): boolean {
   const ext = filePath.split('.').pop()?.toLowerCase() || '';
   return ext === 'md' || ext === 'mdx' || ext === 'markdown';
 }
+
+// Common Monaco languages, organized by group, for language selector menu
+export interface LanguageOption {
+  value: string;
+  label: string;
+  group: 'common' | 'web' | 'programming' | 'data' | 'shell' | 'other';
+}
+
+export const ALL_LANGUAGES: LanguageOption[] = [
+  // Common
+  { value: 'plaintext', label: 'Plain Text', group: 'common' },
+  { value: 'markdown', label: 'Markdown', group: 'common' },
+  // Web
+  { value: 'javascript', label: 'JavaScript', group: 'web' },
+  { value: 'typescript', label: 'TypeScript', group: 'web' },
+  { value: 'html', label: 'HTML', group: 'web' },
+  { value: 'css', label: 'CSS', group: 'web' },
+  { value: 'scss', label: 'SCSS', group: 'web' },
+  { value: 'less', label: 'Less', group: 'web' },
+  { value: 'json', label: 'JSON', group: 'web' },
+  { value: 'xml', label: 'XML', group: 'web' },
+  { value: 'graphql', label: 'GraphQL', group: 'web' },
+  // Programming
+  { value: 'java', label: 'Java', group: 'programming' },
+  { value: 'kotlin', label: 'Kotlin', group: 'programming' },
+  { value: 'python', label: 'Python', group: 'programming' },
+  { value: 'ruby', label: 'Ruby', group: 'programming' },
+  { value: 'go', label: 'Go', group: 'programming' },
+  { value: 'rust', label: 'Rust', group: 'programming' },
+  { value: 'c', label: 'C', group: 'programming' },
+  { value: 'cpp', label: 'C++', group: 'programming' },
+  { value: 'csharp', label: 'C#', group: 'programming' },
+  { value: 'swift', label: 'Swift', group: 'programming' },
+  { value: 'objective-c', label: 'Objective-C', group: 'programming' },
+  { value: 'php', label: 'PHP', group: 'programming' },
+  { value: 'r', label: 'R', group: 'programming' },
+  { value: 'scala', label: 'Scala', group: 'programming' },
+  { value: 'dart', label: 'Dart', group: 'programming' },
+  { value: 'lua', label: 'Lua', group: 'programming' },
+  { value: 'perl', label: 'Perl', group: 'programming' },
+  { value: 'elixir', label: 'Elixir', group: 'programming' },
+  { value: 'haskell', label: 'Haskell', group: 'programming' },
+  { value: 'clojure', label: 'Clojure', group: 'programming' },
+  { value: 'groovy', label: 'Groovy', group: 'programming' },
+  // Data / Config
+  { value: 'yaml', label: 'YAML', group: 'data' },
+  { value: 'ini', label: 'INI / TOML', group: 'data' },
+  { value: 'sql', label: 'SQL', group: 'data' },
+  // Shell
+  { value: 'shell', label: 'Shell / Bash', group: 'shell' },
+  { value: 'powershell', label: 'PowerShell', group: 'shell' },
+  { value: 'bat', label: 'Batch', group: 'shell' },
+  { value: 'dockerfile', label: 'Dockerfile', group: 'shell' },
+  // Other
+  { value: 'latex', label: 'LaTeX', group: 'other' },
+  { value: 'diff', label: 'Diff', group: 'other' },
+];
+
+export function getAllLanguages(): LanguageOption[] {
+  return ALL_LANGUAGES;
+}

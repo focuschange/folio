@@ -49,7 +49,7 @@ export function ProjectSearch() {
       ]);
     }
     setSearching(false);
-  }, [query, caseSensitive, useRegex]);
+  }, [query, caseSensitive, useRegex, projectRoot]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleSearch();

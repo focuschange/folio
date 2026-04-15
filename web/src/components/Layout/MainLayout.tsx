@@ -1,14 +1,14 @@
 import { useAppStore } from '../../store/useAppStore';
 import { Toolbar } from './Toolbar';
 import { StatusBar } from './StatusBar';
-import { Sidebar } from './Sidebar';
 import { FileTree } from '../FileTree/FileTree';
 import { EditorArea } from '../Editor/EditorArea';
-import { GitPanel } from '../Git/GitPanel';
+import { RightPanel } from './RightPanel';
 import { TerminalPane } from '../Terminal/TerminalPane';
 import { SettingsDialog } from '../Settings/SettingsDialog';
 import { ProjectSearchPanel } from '../Search/ProjectSearch';
-import { useRef, useCallback, useState } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
+import { Minimize2 } from 'lucide-react';
 
 function Resizer({ direction = 'horizontal', onDrag }: {
   direction?: 'horizontal' | 'vertical';
@@ -58,20 +58,22 @@ export function MainLayout() {
   const theme = useAppStore(s => s.settings.theme);
   const sidebarVisible = useAppStore(s => s.sidebarVisible);
   const rightPanelVisible = useAppStore(s => s.rightPanelVisible);
-  const gitPanelVisible = useAppStore(s => s.gitPanelVisible);
   const terminalVisible = useAppStore(s => s.terminalVisible);
   const searchVisible = useAppStore(s => s.searchVisible);
   const settingsVisible = useAppStore(s => s.settingsVisible);
   const zenMode = useAppStore(s => s.zenMode);
 
-  // Use refs for drag state to avoid stale closures
-  const sidebarWidthRef = useRef(260);
-  const rightWidthRef = useRef(200);
-  const terminalHeightRef = useRef(200);
+  const sidebarWidth = useAppStore(s => s.sidebarWidth);
+  const rightWidth = useAppStore(s => s.rightWidth);
+  const terminalHeight = useAppStore(s => s.terminalHeight);
+  const setSidebarWidth = useAppStore(s => s.setSidebarWidth);
+  const setRightWidth = useAppStore(s => s.setRightWidth);
+  const setTerminalHeight = useAppStore(s => s.setTerminalHeight);
 
-  const [sidebarWidth, setSidebarWidth] = useState(260);
-  const [rightWidth, setRightWidth] = useState(200);
-  const [terminalHeight, setTerminalHeight] = useState(200);
+  // Use refs for drag state to avoid stale closures
+  const sidebarWidthRef = useRef(sidebarWidth);
+  const rightWidthRef = useRef(rightWidth);
+  const terminalHeightRef = useRef(terminalHeight);
 
   const handleSidebarDrag = useCallback((_startPos: number, delta: number) => {
     // On first move, capture the width at drag start
@@ -100,10 +102,51 @@ export function MainLayout() {
 
   const textColor = theme === 'dark' ? 'text-zinc-100' : 'text-zinc-900';
   const bgColor = theme === 'dark' ? 'bg-zinc-900' : 'bg-white';
+  const toggleZenMode = useAppStore(s => s.toggleZenMode);
+
+  // Exit Zen mode handler — also exits native fullscreen
+  const exitZenMode = useCallback(async () => {
+    toggleZenMode();
+    if ('__TAURI_INTERNALS__' in window) {
+      try {
+        const { getCurrentWindow } = await import('@tauri-apps/api/window');
+        await getCurrentWindow().setFullscreen(false);
+      } catch (e) { console.error(e); }
+    }
+  }, [toggleZenMode]);
+
+  // ESC and F11 to exit Zen mode
+  useEffect(() => {
+    if (!zenMode) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'F11') {
+        e.preventDefault();
+        exitZenMode();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [zenMode, exitZenMode]);
 
   return (
     <div className={`h-screen flex flex-col ${bgColor} ${textColor} overflow-hidden`}>
       {!zenMode && <Toolbar />}
+
+      {/* Exit Zen Mode button in title bar (right side) */}
+      {zenMode && (
+        <button
+          onClick={exitZenMode}
+          className={`fixed top-0 right-2 z-50 h-7 flex items-center gap-1.5 px-2.5 rounded text-xs transition-colors ${
+            theme === 'dark'
+              ? 'text-zinc-300 hover:bg-zinc-700/80 hover:text-white'
+              : 'text-zinc-700 hover:bg-zinc-200/80 hover:text-black'
+          }`}
+          title="Exit Zen Mode (ESC or F11)"
+        >
+          <Minimize2 size={12} />
+          <span>Exit Zen Mode</span>
+        </button>
+      )}
 
       <div className="flex-1 flex min-h-0">
         {/* Left: File Tree / Search */}
@@ -131,12 +174,12 @@ export function MainLayout() {
           )}
         </div>
 
-        {/* Right: Sidebar / Git */}
-        {(rightPanelVisible || gitPanelVisible) && !zenMode && (
+        {/* Right: Tabbed Panel */}
+        {rightPanelVisible && !zenMode && (
           <>
             <Resizer onDrag={handleRightDrag} />
             <div style={{ width: rightWidth, minWidth: 140 }} className="flex-shrink-0 overflow-hidden">
-              {gitPanelVisible ? <GitPanel /> : <Sidebar />}
+              <RightPanel />
             </div>
           </>
         )}

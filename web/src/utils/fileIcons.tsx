@@ -162,6 +162,22 @@ const filenameIcons: Record<string, IconInfo> = {
   'docker-compose.yaml': { icon: Box, color: '#2496ed' },
 };
 
+const NON_EDITABLE_EXTENSIONS = new Set([
+  'png', 'jpg', 'jpeg', 'gif', 'bmp', 'ico', 'webp', 'svg', 'tiff', 'tif',
+  'mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma',
+  'mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm',
+  'zip', 'tar', 'gz', 'bz2', 'rar', '7z', 'xz',
+  'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+  'exe', 'dll', 'so', 'dylib', 'bin', 'dat', 'class', 'o', 'a',
+  'woff', 'woff2', 'ttf', 'otf', 'eot',
+  'sqlite', 'db',
+]);
+
+export function isEditableFile(filename: string): boolean {
+  const ext = filename.split('.').pop()?.toLowerCase() ?? '';
+  return !NON_EDITABLE_EXTENSIONS.has(ext);
+}
+
 const defaultIcon: IconInfo = { icon: File, color: '#a8b0b8' };
 
 export function getFileIconInfo(fileName: string): IconInfo {

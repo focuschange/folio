@@ -1,8 +1,8 @@
 import { useState, useCallback, useRef } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { useFileSystem } from '../../hooks/useFileSystem';
-import { FileIcon, FolderIcon } from '../../utils/fileIcons';
-import { ChevronRight, ChevronDown, Filter } from 'lucide-react';
+import { FileIcon, FolderIcon, isEditableFile } from '../../utils/fileIcons';
+import { ChevronRight, ChevronDown, Filter, ChevronsDownUp, ChevronsUpDown, FolderPlus, X } from 'lucide-react';
 import type { FileEntry } from '../../types';
 
 function TreeNode({ entry, depth = 0 }: { entry: FileEntry; depth?: number }) {
@@ -30,17 +30,19 @@ function TreeNode({ entry, depth = 0 }: { entry: FileEntry; depth?: number }) {
     }
   }
 
+  const editable = entry.isDir || isEditableFile(entry.name);
+
   const handleClick = () => {
     setSelectedPath(entry.path);
     if (entry.isDir) {
       toggleDir(entry.path);
-    } else {
+    } else if (editable) {
       openFileInEditor(entry.path, entry.name);
     }
   };
 
   const handleDoubleClick = () => {
-    if (!entry.isDir) {
+    if (!entry.isDir && editable) {
       openFileInEditor(entry.path, entry.name);
     }
   };
@@ -48,7 +50,7 @@ function TreeNode({ entry, depth = 0 }: { entry: FileEntry; depth?: number }) {
   return (
     <div>
       <div
-        className={`flex items-center gap-1 py-0.5 pr-2 cursor-pointer text-sm select-none ${hoverBg} ${selectedBg} ${gitColor} transition-colors`}
+        className={`flex items-center gap-1 py-0.5 pr-2 text-sm select-none ${hoverBg} ${selectedBg} ${gitColor} transition-colors ${editable ? 'cursor-pointer' : 'cursor-default opacity-40'}`}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
@@ -87,12 +89,55 @@ function TreeNode({ entry, depth = 0 }: { entry: FileEntry; depth?: number }) {
   );
 }
 
+function RootHeader({ entry, theme }: { entry: FileEntry; theme: string }) {
+  const expandedDirs = useAppStore(s => s.expandedDirs);
+  const toggleDir = useAppStore(s => s.toggleDir);
+  const removeProjectRoot = useAppStore(s => s.removeProjectRoot);
+  const projectRoots = useAppStore(s => s.projectRoots);
+  const isExpanded = expandedDirs.has(entry.path);
+  const showRemove = projectRoots.length > 1;
+
+  return (
+    <div
+      className={`flex items-center gap-1 px-2 py-1.5 text-xs font-bold cursor-pointer select-none ${
+        theme === 'dark' ? 'text-zinc-300 hover:bg-zinc-800' : 'text-zinc-700 hover:bg-zinc-100'
+      }`}
+      onClick={() => toggleDir(entry.path)}
+    >
+      {isExpanded ? <ChevronDown size={14} className="shrink-0 opacity-60" /> : <ChevronRight size={14} className="shrink-0 opacity-60" />}
+      <FolderIcon isOpen={isExpanded} size={15} />
+      <span className="truncate flex-1">{entry.name}</span>
+      {showRemove && (
+        <button
+          className={`p-0.5 rounded opacity-0 group-hover:opacity-100 hover:opacity-100 ${
+            theme === 'dark' ? 'hover:bg-zinc-700 text-zinc-500 hover:text-zinc-300' : 'hover:bg-zinc-200 text-zinc-400 hover:text-zinc-600'
+          }`}
+          style={{ opacity: undefined }}
+          onClick={(e) => {
+            e.stopPropagation();
+            removeProjectRoot(entry.path);
+          }}
+          title="Remove from workspace"
+        >
+          <X size={12} />
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function FileTree() {
   const theme = useAppStore(s => s.settings.theme);
   const fileTree = useAppStore(s => s.fileTree);
   const projectRoot = useAppStore(s => s.projectRoot);
+  const projectRoots = useAppStore(s => s.projectRoots);
+  const expandedDirs = useAppStore(s => s.expandedDirs);
+  const collapseAllDirs = useAppStore(s => s.collapseAllDirs);
+  const expandAllDirs = useAppStore(s => s.expandAllDirs);
   const [filter, setFilter] = useState('');
+  const isAllCollapsed = expandedDirs.size === 0;
   const containerRef = useRef<HTMLDivElement>(null);
+  const { openFolder } = useFileSystem();
 
   const filterTree = useCallback((entries: FileEntry[], query: string): FileEntry[] => {
     if (!query) return entries;
@@ -112,6 +157,7 @@ export function FileTree() {
   const filteredTree = filterTree(fileTree, filter);
   const rootName = projectRoot?.split('/').pop() || 'Explorer';
   const textMuted = theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400';
+  const isMultiRoot = projectRoots.length > 1;
 
   return (
     <div ref={containerRef} className={`h-full flex flex-col overflow-hidden ${
@@ -120,6 +166,22 @@ export function FileTree() {
       {/* Header */}
       <div className={`flex items-center justify-between px-3 py-2 text-[11px] font-semibold uppercase tracking-wider ${textMuted}`}>
         <span className="truncate">{rootName}</span>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={isAllCollapsed ? expandAllDirs : collapseAllDirs}
+            className={`p-0.5 rounded ${theme === 'dark' ? 'hover:bg-zinc-700 text-zinc-500 hover:text-zinc-300' : 'hover:bg-zinc-200 text-zinc-400 hover:text-zinc-600'}`}
+            title={isAllCollapsed ? "Expand All" : "Collapse All"}
+          >
+            {isAllCollapsed ? <ChevronsUpDown size={14} /> : <ChevronsDownUp size={14} />}
+          </button>
+          <button
+            onClick={openFolder}
+            className={`p-0.5 rounded ${theme === 'dark' ? 'hover:bg-zinc-700 text-zinc-500 hover:text-zinc-300' : 'hover:bg-zinc-200 text-zinc-400 hover:text-zinc-600'}`}
+            title="Add Folder"
+          >
+            <FolderPlus size={14} />
+          </button>
+        </div>
       </div>
 
       {/* Filter */}
@@ -144,8 +206,31 @@ export function FileTree() {
           <div className={`px-3 py-4 text-center text-xs ${textMuted}`}>
             {fileTree.length === 0 ? 'Open a folder to get started' : 'No matching files'}
           </div>
+        ) : isMultiRoot ? (
+          filteredTree.map(rootEntry => (
+            <div key={rootEntry.path} className="group">
+              <RootHeader entry={rootEntry} theme={theme} />
+              {expandedDirs.has(rootEntry.path) && rootEntry.children && (
+                <div>
+                  {rootEntry.children
+                    .sort((a, b) => {
+                      if (a.isDir && !b.isDir) return -1;
+                      if (!a.isDir && b.isDir) return 1;
+                      return a.name.localeCompare(b.name);
+                    })
+                    .map(child => (
+                      <TreeNode key={child.path} entry={child} depth={1} />
+                    ))}
+                </div>
+              )}
+            </div>
+          ))
         ) : (
-          filteredTree
+          // Single root: show children of root directly (root itself shown in header)
+          (filteredTree.length === 1 && filteredTree[0].isDir && filteredTree[0].children
+            ? filteredTree[0].children
+            : filteredTree
+          )
             .sort((a, b) => {
               if (a.isDir && !b.isDir) return -1;
               if (!a.isDir && b.isDir) return 1;
