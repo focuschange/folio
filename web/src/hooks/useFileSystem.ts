@@ -62,7 +62,8 @@ const mockFileContents: Record<string, string> = {
 };
 
 export function useFileSystem() {
-  const { addProjectRoot, openTab } = useAppStore();
+  const addProjectRoot = useAppStore(s => s.addProjectRoot);
+  const openTab = useAppStore(s => s.openTab);
 
   const loadDirectory = useCallback(async (dirPath: string) => {
     if (isTauri) {

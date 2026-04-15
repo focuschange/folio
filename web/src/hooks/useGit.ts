@@ -71,7 +71,9 @@ const mockGitLog: GitLogEntry[] = [
 ];
 
 export function useGit() {
-  const { setGitBranch, setGitStatus, setGitLog } = useAppStore();
+  const setGitBranch = useAppStore(s => s.setGitBranch);
+  const setGitStatus = useAppStore(s => s.setGitStatus);
+  const setGitLog = useAppStore(s => s.setGitLog);
   const projectRoot = useAppStore(s => s.projectRoot);
 
   const fetchBranch = useCallback(async () => {

@@ -13,6 +13,7 @@ import {
   Terminal,
   Wand2, WandSparkles,
   Code, Minus, Sigma, GitGraph, FileText, IndentIncrease, IndentDecrease,
+  Eye, EyeOff,
 } from 'lucide-react';
 import { isFormatSupported } from '../../utils/formatter';
 import * as md from '../../utils/markdownActions';
@@ -77,12 +78,24 @@ function Separator() {
 export function Toolbar() {
   const theme = useAppStore(s => s.settings.theme);
   const { toggleTheme } = useTheme();
-  const {
-    toggleSidebar, toggleRightPanel, toggleSearch, toggleGitPanel, toggleTerminal,
-    toggleZenMode, toggleSettings, toggleOutline,
-    sidebarVisible, terminalVisible, activeRightTab, rightPanelVisible,
-    activeTabId, tabs, openTab,
-  } = useAppStore();
+  // Use individual selectors — subscribing to the whole store via useAppStore() would re-render on every state change
+  const toggleSidebar = useAppStore(s => s.toggleSidebar);
+  const toggleRightPanel = useAppStore(s => s.toggleRightPanel);
+  const toggleSearch = useAppStore(s => s.toggleSearch);
+  const toggleGitPanel = useAppStore(s => s.toggleGitPanel);
+  const toggleTerminal = useAppStore(s => s.toggleTerminal);
+  const toggleZenMode = useAppStore(s => s.toggleZenMode);
+  const toggleSettings = useAppStore(s => s.toggleSettings);
+  const toggleOutline = useAppStore(s => s.toggleOutline);
+  const sidebarVisible = useAppStore(s => s.sidebarVisible);
+  const terminalVisible = useAppStore(s => s.terminalVisible);
+  const activeRightTab = useAppStore(s => s.activeRightTab);
+  const rightPanelVisible = useAppStore(s => s.rightPanelVisible);
+  const activeTabId = useAppStore(s => s.activeTabId);
+  const tabs = useAppStore(s => s.tabs);
+  const openTab = useAppStore(s => s.openTab);
+  const previewVisible = useAppStore(s => s.previewVisible);
+  const togglePreview = useAppStore(s => s.togglePreview);
   const { openFolder, writeFile } = useFileSystem();
   const iconSize = 16;
   const iconColor = theme === 'dark' ? '#a1a1aa' : '#52525b';
@@ -360,6 +373,13 @@ export function Toolbar() {
       <ToolbarButton icon={<Link2 size={iconSize} color={iconColor} />} tooltip="Link (⌘K)" onClick={handleLink} disabled={!activeTab || !isMarkdown} />
       <ToolbarButton icon={<ImageIcon size={iconSize} color={iconColor} />} tooltip="Image" onClick={handleImage} disabled={!activeTab || !isMarkdown} />
       <ToolbarButton icon={<Table2 size={iconSize} color={iconColor} />} tooltip="Insert Table" onClick={handleInsertTable} disabled={!activeTab || !isMarkdown} />
+      <ToolbarButton
+        icon={previewVisible ? <EyeOff size={iconSize} color={iconColor} /> : <Eye size={iconSize} color={iconColor} />}
+        tooltip={previewVisible ? "Hide Preview (⌘⇧V)" : "Show Preview (⌘⇧V)"}
+        onClick={togglePreview}
+        active={isMarkdown && previewVisible}
+        disabled={!activeTab || !isMarkdown}
+      />
 
       <MoreMenuDropdown
         disabled={!activeTab || !isMarkdown}

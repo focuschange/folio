@@ -43,7 +43,7 @@ export interface GitLogEntry {
   message: string;
 }
 
-export type RightTab = 'outline' | 'files' | 'git' | 'info' | 'todos' | 'toc' | 'links' | 'recent';
+export type RightTab = 'outline' | 'files' | 'git' | 'info' | 'todos' | 'toc' | 'links' | 'recent' | 'bookmarks';
 
 export interface TodoItem {
   type: 'TODO' | 'FIXME' | 'HACK';
@@ -134,6 +134,8 @@ export interface SessionState {
   sidebarWidth: number;
   rightWidth: number;
   terminalHeight: number;
+  bookmarks?: Record<string, number[]>;
+  previewVisible?: boolean;
 }
 
 export const defaultSettings: AppSettings = {

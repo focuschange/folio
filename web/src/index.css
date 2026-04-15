@@ -56,6 +56,17 @@ html, body, #root {
   background: transparent !important;
 }
 
+/* Bookmark decorations */
+.folio-bookmark-marker {
+  background: #3b82f6;
+  width: 3px !important;
+  margin-left: 3px;
+  border-radius: 2px;
+}
+.folio-bookmark-line {
+  background: rgba(59, 130, 246, 0.08);
+}
+
 /* Markdown preview styles */
 .markdown-body {
   line-height: 1.7;

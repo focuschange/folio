@@ -7,9 +7,10 @@ import { TodoPanel } from './TodoPanel';
 import { TocPanel } from './TocPanel';
 import { LinksPanel } from './LinksPanel';
 import { RecentFilesPanel } from './RecentFilesPanel';
+import { BookmarksPanel } from './BookmarksPanel';
 import {
   FileCode2, Files, GitBranch, Info,
-  Bug, Hash, Link2, History,
+  Bug, Hash, Link2, History, Bookmark,
 } from 'lucide-react';
 import type { RightTab } from '../../types';
 
@@ -22,6 +23,7 @@ const tabItems: { id: RightTab; icon: typeof FileCode2; label: string }[] = [
   { id: 'toc', icon: Hash, label: 'TOC' },
   { id: 'links', icon: Link2, label: 'Links' },
   { id: 'recent', icon: History, label: 'Recent' },
+  { id: 'bookmarks', icon: Bookmark, label: 'Bookmarks' },
 ];
 
 export function RightPanel() {
@@ -70,6 +72,7 @@ export function RightPanel() {
         {activeRightTab === 'toc' && <TocPanel />}
         {activeRightTab === 'links' && <LinksPanel />}
         {activeRightTab === 'recent' && <RecentFilesPanel />}
+        {activeRightTab === 'bookmarks' && <BookmarksPanel />}
       </div>
     </div>
   );

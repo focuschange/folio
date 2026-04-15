@@ -11,10 +11,11 @@ export function EditorArea() {
   const theme = useAppStore(s => s.settings.theme);
   const tabs = useAppStore(s => s.tabs);
   const activeTabId = useAppStore(s => s.activeTabId);
+  const previewVisible = useAppStore(s => s.previewVisible);
   const activeTab = tabs.find(t => t.id === activeTabId);
   const { openFolder } = useFileSystem();
 
-  const showMarkdownPreview = activeTab && isMarkdown(activeTab.path);
+  const showMarkdownPreview = activeTab && isMarkdown(activeTab.path) && previewVisible;
 
   if (!activeTab) {
     return (

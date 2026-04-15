@@ -30,3 +30,6 @@ web/src-tauri/.cargo/
 node_modules/
 package-lock.json
 package.json
+
+# Claude Code local workspace (tool permissions, plans, memory)
+.claude/

@@ -12,7 +12,9 @@ async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Prom
 }
 
 export function useSettings() {
-  const { settings, setSettings, updateSettings } = useAppStore();
+  const settings = useAppStore(s => s.settings);
+  const setSettings = useAppStore(s => s.setSettings);
+  const updateSettings = useAppStore(s => s.updateSettings);
 
   const loadSettings = useCallback(async () => {
     if (isTauri) {

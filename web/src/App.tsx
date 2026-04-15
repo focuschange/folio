@@ -16,6 +16,7 @@ type ActionId =
   | 'show-outline' | 'show-files' | 'show-git' | 'show-info'
   | 'toggle-outline' | 'toggle-terminal' | 'toggle-git-panel'
   | 'zen-mode'
+  | 'toggle-preview'
   | 'window-minimize' | 'window-zoom' | 'window-fullscreen';
 
 function App() {
@@ -171,6 +172,9 @@ function App() {
           break;
         case 'toggle-git-panel':
           store.toggleGitPanel();
+          break;
+        case 'toggle-preview':
+          store.togglePreview();
           break;
         case 'zen-mode': {
           store.toggleZenMode();
@@ -349,6 +353,12 @@ function App() {
         else if (key === 'g') id = 'show-git';
         else if (key === 'i') id = 'show-info';
         else if (key === 's') id = 'save-as';
+        else if (key === 'v') {
+          // Only intercept ⌘⇧V when current tab is markdown — otherwise let paste-without-formatting pass through
+          const state = useAppStore.getState();
+          const activeTab = state.tabs.find(t => t.id === state.activeTabId);
+          if (activeTab && activeTab.language === 'markdown') id = 'toggle-preview';
+        }
       } else if (meta && alt && !shift) {
         if (key === 'b') id = 'toggle-right-panel';
       } else if (!meta && shift && alt) {

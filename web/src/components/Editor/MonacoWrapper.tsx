@@ -10,11 +10,19 @@ interface MonacoWrapperProps {
   tab: EditorTab;
 }
 
+// Stable reference for the "no bookmarks" case — avoids returning a fresh [] on every selector call,
+// which would otherwise invalidate the `bookmarks` useEffect dep and re-run the decoration sync repeatedly.
+const EMPTY_LINES: number[] = [];
+
 export function MonacoWrapper({ tab }: MonacoWrapperProps) {
   const settings = useAppStore(s => s.settings);
   const updateTabContent = useAppStore(s => s.updateTabContent);
   const updateTabCursor = useAppStore(s => s.updateTabCursor);
+  // Subscribe to the bookmarks map then derive path-specific list so we get a stable reference
+  const bookmarksMap = useAppStore(s => s.bookmarks);
+  const bookmarks = bookmarksMap[tab.path] ?? EMPTY_LINES;
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
+  const decorationsRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
 
   const handleMount: OnMount = useCallback((editor) => {
     editorRef.current = editor;
@@ -80,8 +88,59 @@ export function MonacoWrapper({ tab }: MonacoWrapperProps) {
       },
     });
 
+    // Toggle bookmark on current line (Cmd+F2)
+    editor.addAction({
+      id: 'folio.toggle-bookmark',
+      label: 'Toggle Bookmark',
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.F2],
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 2.0,
+      run: (ed) => {
+        const pos = ed.getPosition();
+        if (!pos) return;
+        const activeTab = useAppStore.getState().tabs.find(t => t.id === useAppStore.getState().activeTabId);
+        if (!activeTab) return;
+        useAppStore.getState().toggleBookmark(activeTab.path, pos.lineNumber);
+      },
+    });
+
+    // Clear all bookmarks for current file
+    editor.addAction({
+      id: 'folio.clear-bookmarks',
+      label: 'Clear Bookmarks (this file)',
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 2.1,
+      run: (ed) => {
+        const activeTab = useAppStore.getState().tabs.find(t => t.id === useAppStore.getState().activeTabId);
+        if (!activeTab) return;
+        useAppStore.getState().clearBookmarksForFile(activeTab.path);
+        void ed; // no-op, decorations updated by useEffect
+      },
+    });
+
+    // Create decoration collection
+    decorationsRef.current = editor.createDecorationsCollection([]);
+
     editor.focus();
   }, [tab.id, updateTabCursor]);
+
+  // Sync bookmark decorations when bookmarks change
+  useEffect(() => {
+    if (!decorationsRef.current) return;
+    const decorations: monaco.editor.IModelDeltaDecoration[] = bookmarks.map(line => ({
+      range: new monaco.Range(line, 1, line, 1),
+      options: {
+        isWholeLine: true,
+        linesDecorationsClassName: 'folio-bookmark-marker',
+        className: 'folio-bookmark-line',
+        overviewRuler: {
+          color: '#3b82f6',
+          position: monaco.editor.OverviewRulerLane.Full,
+        },
+      },
+    }));
+    decorationsRef.current.set(decorations);
+  }, [bookmarks]);
 
   // Update toolbar ref when this tab becomes active
   useEffect(() => {

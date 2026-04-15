@@ -43,6 +43,10 @@ interface AppState {
   // Right panel data
   todoItems: TodoItem[];
   fileLinks: LinkInfo[];
+  bookmarks: Record<string, number[]>;  // filePath → line numbers
+
+  // Markdown preview visibility (markdown files only)
+  previewVisible: boolean;
 
   // Settings
   settings: AppSettings;
@@ -93,6 +97,12 @@ interface AppState {
   setTodoItems: (items: TodoItem[]) => void;
   setFileLinks: (links: LinkInfo[]) => void;
   clearRecentFiles: () => void;
+  toggleBookmark: (path: string, line: number) => void;
+  clearBookmarksForFile: (path: string) => void;
+  removeBookmark: (path: string, line: number) => void;
+  reorderProjectRoots: (fromIndex: number, toIndex: number) => void;
+  togglePreview: () => void;
+  setPreviewVisible: (v: boolean) => void;
 
   // Actions - Settings
   updateSettings: (partial: Partial<AppSettings>) => void;
@@ -139,6 +149,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   gitLog: [],
   todoItems: [],
   fileLinks: [],
+  bookmarks: {},
+  previewVisible: true,
   settings: defaultSettings,
 
   // Tab actions
@@ -357,6 +369,56 @@ export const useAppStore = create<AppState>((set, get) => ({
   setFileLinks: (links) => set({ fileLinks: links }),
   clearRecentFiles: () => set({ recentFiles: [] }),
 
+  toggleBookmark: (path, line) =>
+    set(state => {
+      const current = state.bookmarks[path] ?? [];
+      const next = current.includes(line)
+        ? current.filter(l => l !== line)
+        : [...current, line].sort((a, b) => a - b);
+      const newBookmarks = { ...state.bookmarks };
+      if (next.length === 0) delete newBookmarks[path];
+      else newBookmarks[path] = next;
+      return { bookmarks: newBookmarks };
+    }),
+
+  removeBookmark: (path, line) =>
+    set(state => {
+      const current = state.bookmarks[path] ?? [];
+      const next = current.filter(l => l !== line);
+      const newBookmarks = { ...state.bookmarks };
+      if (next.length === 0) delete newBookmarks[path];
+      else newBookmarks[path] = next;
+      return { bookmarks: newBookmarks };
+    }),
+
+  clearBookmarksForFile: (path) =>
+    set(state => {
+      const newBookmarks = { ...state.bookmarks };
+      delete newBookmarks[path];
+      return { bookmarks: newBookmarks };
+    }),
+
+  togglePreview: () => set(state => ({ previewVisible: !state.previewVisible })),
+  setPreviewVisible: (v) => set({ previewVisible: v }),
+
+  reorderProjectRoots: (fromIndex, toIndex) =>
+    set(state => {
+      if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return {};
+      if (fromIndex >= state.projectRoots.length || toIndex >= state.projectRoots.length) return {};
+      const newRoots = [...state.projectRoots];
+      const [movedRoot] = newRoots.splice(fromIndex, 1);
+      newRoots.splice(toIndex, 0, movedRoot);
+      // Reorder fileTree to match
+      const newTree = newRoots
+        .map(path => state.fileTree.find(e => e.path === path))
+        .filter((e): e is FileEntry => e !== undefined);
+      // Include any tree entries whose path isn't in projectRoots (edge case)
+      state.fileTree.forEach(e => {
+        if (!newTree.find(n => n.path === e.path)) newTree.push(e);
+      });
+      return { projectRoots: newRoots, fileTree: newTree };
+    }),
+
   // Settings
   updateSettings: (partial) =>
     set(state => ({ settings: { ...state.settings, ...partial } })),
@@ -382,6 +444,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     sidebarWidth: session.sidebarWidth ?? 260,
     rightWidth: session.rightWidth ?? 200,
     terminalHeight: session.terminalHeight ?? 200,
+    bookmarks: session.bookmarks ?? {},
+    previewVisible: session.previewVisible ?? true,
   }),
 
   getSessionState: () => {
@@ -411,6 +475,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       sidebarWidth: s.sidebarWidth,
       rightWidth: s.rightWidth,
       terminalHeight: s.terminalHeight,
+      bookmarks: s.bookmarks,
+      previewVisible: s.previewVisible,
     };
   },
 

@@ -134,7 +134,9 @@ export function FileTree() {
   const expandedDirs = useAppStore(s => s.expandedDirs);
   const collapseAllDirs = useAppStore(s => s.collapseAllDirs);
   const expandAllDirs = useAppStore(s => s.expandAllDirs);
+  const reorderProjectRoots = useAppStore(s => s.reorderProjectRoots);
   const [filter, setFilter] = useState('');
+  const [rootDragIndex, setRootDragIndex] = useState<number | null>(null);
   const isAllCollapsed = expandedDirs.size === 0;
   const containerRef = useRef<HTMLDivElement>(null);
   const { openFolder } = useFileSystem();
@@ -207,24 +209,40 @@ export function FileTree() {
             {fileTree.length === 0 ? 'Open a folder to get started' : 'No matching files'}
           </div>
         ) : isMultiRoot ? (
-          filteredTree.map(rootEntry => (
-            <div key={rootEntry.path} className="group">
-              <RootHeader entry={rootEntry} theme={theme} />
-              {expandedDirs.has(rootEntry.path) && rootEntry.children && (
-                <div>
-                  {rootEntry.children
-                    .sort((a, b) => {
-                      if (a.isDir && !b.isDir) return -1;
-                      if (!a.isDir && b.isDir) return 1;
-                      return a.name.localeCompare(b.name);
-                    })
-                    .map(child => (
-                      <TreeNode key={child.path} entry={child} depth={1} />
-                    ))}
-                </div>
-              )}
-            </div>
-          ))
+          filteredTree.map((rootEntry, rootIndex) => {
+            const isDragging = rootDragIndex === rootIndex;
+            return (
+              <div
+                key={rootEntry.path}
+                draggable
+                onDragStart={() => setRootDragIndex(rootIndex)}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  if (rootDragIndex !== null && rootDragIndex !== rootIndex) {
+                    reorderProjectRoots(rootDragIndex, rootIndex);
+                    setRootDragIndex(rootIndex);
+                  }
+                }}
+                onDragEnd={() => setRootDragIndex(null)}
+                className={`group ${isDragging ? 'opacity-50' : ''}`}
+              >
+                <RootHeader entry={rootEntry} theme={theme} />
+                {expandedDirs.has(rootEntry.path) && rootEntry.children && (
+                  <div>
+                    {rootEntry.children
+                      .sort((a, b) => {
+                        if (a.isDir && !b.isDir) return -1;
+                        if (!a.isDir && b.isDir) return 1;
+                        return a.name.localeCompare(b.name);
+                      })
+                      .map(child => (
+                        <TreeNode key={child.path} entry={child} depth={1} />
+                      ))}
+                  </div>
+                )}
+              </div>
+            );
+          })
         ) : (
           // Single root: show children of root directly (root itself shown in header)
           (filteredTree.length === 1 && filteredTree[0].isDir && filteredTree[0].children
