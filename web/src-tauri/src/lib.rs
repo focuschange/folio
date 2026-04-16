@@ -1,6 +1,6 @@
 mod commands;
 
-use commands::{file_commands, git_commands, settings_commands, terminal_commands};
+use commands::{ai_commands, file_commands, git_commands, settings_commands, terminal_commands};
 use tauri::{Emitter, Manager};
 use tauri::menu::{Menu, Submenu, MenuItem, PredefinedMenuItem};
 
@@ -170,6 +170,10 @@ pub fn run() {
             settings_commands::load_session,
             // Terminal commands
             terminal_commands::run_command,
+            // AI commands
+            ai_commands::ai_chat,
+            ai_commands::load_ai_config,
+            ai_commands::save_ai_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

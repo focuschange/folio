@@ -43,7 +43,19 @@ export interface GitLogEntry {
   message: string;
 }
 
-export type RightTab = 'outline' | 'files' | 'git' | 'info' | 'todos' | 'toc' | 'links' | 'recent' | 'bookmarks' | 'images';
+export type RightTab = 'outline' | 'files' | 'git' | 'info' | 'todos' | 'toc' | 'links' | 'recent' | 'bookmarks' | 'images' | 'chat';
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+}
+
+export interface AiConfig {
+  provider: string;
+  apiKey: string;
+  model: string;
+}
 
 export interface TodoItem {
   type: 'TODO' | 'FIXME' | 'HACK';

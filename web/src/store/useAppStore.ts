@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { EditorTab, AppSettings, FileEntry, GitStatusEntry, GitLogEntry, SessionState, RightTab, TodoItem, LinkInfo } from '../types';
+import type { EditorTab, AppSettings, FileEntry, GitStatusEntry, GitLogEntry, SessionState, RightTab, TodoItem, LinkInfo, ChatMessage } from '../types';
 import { defaultSettings } from '../types';
 import { getLanguageFromPath } from '../utils/languages';
 
@@ -47,6 +47,10 @@ interface AppState {
 
   // Markdown preview visibility (markdown files only)
   previewVisible: boolean;
+
+  // AI Chat
+  chatMessages: ChatMessage[];
+  chatLoading: boolean;
 
   // Settings
   settings: AppSettings;
@@ -103,6 +107,9 @@ interface AppState {
   reorderProjectRoots: (fromIndex: number, toIndex: number) => void;
   togglePreview: () => void;
   setPreviewVisible: (v: boolean) => void;
+  addChatMessage: (msg: ChatMessage) => void;
+  clearChatMessages: () => void;
+  setChatLoading: (v: boolean) => void;
 
   // Actions - Settings
   updateSettings: (partial: Partial<AppSettings>) => void;
@@ -153,6 +160,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   fileLinks: [],
   bookmarks: {},
   previewVisible: true,
+  chatMessages: [],
+  chatLoading: false,
   settings: defaultSettings,
 
   // Tab actions
@@ -402,6 +411,10 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   togglePreview: () => set(state => ({ previewVisible: !state.previewVisible })),
   setPreviewVisible: (v) => set({ previewVisible: v }),
+
+  addChatMessage: (msg) => set(state => ({ chatMessages: [...state.chatMessages, msg] })),
+  clearChatMessages: () => set({ chatMessages: [] }),
+  setChatLoading: (v) => set({ chatLoading: v }),
 
   reorderProjectRoots: (fromIndex, toIndex) =>
     set(state => {

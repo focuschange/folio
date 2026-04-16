@@ -1,9 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAppStore } from '../../store/useAppStore';
-import { X, Monitor, Type, Layout } from 'lucide-react';
-import type { AppSettings } from '../../types';
+import { X, Monitor, Type, Layout, Bot } from 'lucide-react';
+import type { AppSettings, AiConfig } from '../../types';
 
-type SettingsTab = 'editor' | 'appearance' | 'layout';
+const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  const { invoke } = await import('@tauri-apps/api/core');
+  return invoke<T>(cmd, args);
+}
+
+type SettingsTab = 'editor' | 'appearance' | 'layout' | 'ai';
 
 export function SettingsDialog() {
   const theme = useAppStore(s => s.settings.theme);
@@ -20,10 +27,35 @@ export function SettingsDialog() {
   const tabActive = theme === 'dark' ? 'bg-zinc-700 text-zinc-100' : 'bg-zinc-200 text-zinc-800';
   const tabInactive = `${textMuted} ${theme === 'dark' ? 'hover:bg-zinc-700/50' : 'hover:bg-zinc-100'}`;
 
+  // AI config state
+  const [aiConfig, setAiConfig] = useState<AiConfig>({ provider: 'claude', apiKey: '', model: 'claude-sonnet-4-20250514' });
+  const [aiSaved, setAiSaved] = useState(false);
+
+  useEffect(() => {
+    if (!isTauri) return;
+    tauriInvoke<string>('load_ai_config')
+      .then(json => {
+        const cfg = JSON.parse(json);
+        setAiConfig({ provider: cfg.provider || 'claude', apiKey: cfg.api_key || '', model: cfg.model || 'claude-sonnet-4-20250514' });
+      })
+      .catch(() => {});
+  }, []);
+
+  const saveAiConfig = async () => {
+    if (!isTauri) return;
+    const json = JSON.stringify({ provider: aiConfig.provider, api_key: aiConfig.apiKey, model: aiConfig.model });
+    try {
+      await tauriInvoke('save_ai_config', { configJson: json });
+      setAiSaved(true);
+      setTimeout(() => setAiSaved(false), 2000);
+    } catch (e) { console.error('Failed to save AI config:', e); }
+  };
+
   const tabs: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
     { id: 'editor', label: 'Editor', icon: <Type size={14} /> },
     { id: 'appearance', label: 'Appearance', icon: <Monitor size={14} /> },
     { id: 'layout', label: 'Layout', icon: <Layout size={14} /> },
+    { id: 'ai', label: 'AI', icon: <Bot size={14} /> },
   ];
 
   const selectClass = `px-2 py-1.5 rounded-md text-xs ${inputBg} outline-none cursor-pointer`;
@@ -147,6 +179,71 @@ export function SettingsDialog() {
                   className={inputClass}
                 />
               </SettingRow>
+            </>
+          )}
+
+          {activeTab === 'ai' && (
+            <>
+              <SettingRow label="Provider">
+                <select
+                  value={aiConfig.provider}
+                  onChange={e => {
+                    const p = e.target.value;
+                    const defaultModel = p === 'openai' ? 'gpt-4o' : 'claude-sonnet-4-20250514';
+                    setAiConfig(c => ({ ...c, provider: p, model: defaultModel, apiKey: '' }));
+                  }}
+                  className={selectClass}
+                >
+                  <option value="claude">Claude (Anthropic)</option>
+                  <option value="openai">OpenAI</option>
+                </select>
+              </SettingRow>
+              <SettingRow label="API Key">
+                <input
+                  type="password"
+                  value={aiConfig.apiKey}
+                  onChange={e => setAiConfig(c => ({ ...c, apiKey: e.target.value }))}
+                  placeholder={aiConfig.provider === 'openai' ? 'sk-...' : 'sk-ant-...'}
+                  className={inputClass}
+                />
+              </SettingRow>
+              <SettingRow label="Model">
+                <select
+                  value={aiConfig.model}
+                  onChange={e => setAiConfig(c => ({ ...c, model: e.target.value }))}
+                  className={selectClass}
+                >
+                  {aiConfig.provider === 'claude' ? (
+                    <>
+                      <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
+                      <option value="claude-haiku-4-20250514">Claude Haiku 4</option>
+                      <option value="claude-opus-4-20250514">Claude Opus 4</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="gpt-4o">GPT-4o</option>
+                      <option value="gpt-4o-mini">GPT-4o Mini</option>
+                      <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                      <option value="o3-mini">o3-mini</option>
+                    </>
+                  )}
+                </select>
+              </SettingRow>
+              <div className="flex items-center justify-end gap-2 pt-2">
+                {aiSaved && <span className="text-xs text-green-400">Saved!</span>}
+                <button
+                  onClick={saveAiConfig}
+                  className="px-3 py-1.5 rounded text-xs bg-blue-600 text-white hover:bg-blue-500"
+                >
+                  Save AI Settings
+                </button>
+              </div>
+              <div className={`text-[10px] ${textMuted} mt-2`}>
+                API 키는 로컬에만 저장됩니다 (<code>~/.folio/ai-config.json</code>).
+                {aiConfig.provider === 'claude'
+                  ? ' Anthropic API에 직접 연결됩니다.'
+                  : ' OpenAI API에 직접 연결됩니다.'}
+              </div>
             </>
           )}
         </div>

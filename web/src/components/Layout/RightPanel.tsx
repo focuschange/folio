@@ -10,10 +10,11 @@ import { LinksPanel } from './LinksPanel';
 import { RecentFilesPanel } from './RecentFilesPanel';
 import { BookmarksPanel } from './BookmarksPanel';
 import { ImageGalleryPanel } from './ImageGalleryPanel';
+import { AiChatPanel } from './AiChatPanel';
 import {
   FileCode2, Files, GitBranch, Info,
   Bug, Hash, Link2, History, Bookmark,
-  Image as ImageIcon,
+  Image as ImageIcon, MessageSquare,
   ChevronLeft, ChevronRight, MoreHorizontal,
 } from 'lucide-react';
 import type { RightTab } from '../../types';
@@ -29,6 +30,7 @@ const tabItems: { id: RightTab; icon: typeof FileCode2; label: string }[] = [
   { id: 'recent', icon: History, label: 'Recent' },
   { id: 'bookmarks', icon: Bookmark, label: 'Bookmarks' },
   { id: 'images', icon: ImageIcon, label: 'Images' },
+  { id: 'chat', icon: MessageSquare, label: 'AI Chat' },
 ];
 
 export function RightPanel() {
@@ -225,6 +227,7 @@ export function RightPanel() {
         {activeRightTab === 'recent' && <RecentFilesPanel />}
         {activeRightTab === 'bookmarks' && <BookmarksPanel />}
         {activeRightTab === 'images' && <ImageGalleryPanel />}
+        {activeRightTab === 'chat' && <AiChatPanel />}
       </div>
     </div>
   );
