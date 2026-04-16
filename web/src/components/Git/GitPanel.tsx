@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { useGit } from '../../hooks/useGit';
 import {
   GitBranch, GitCommit, Upload, Download,
-  Plus, FileText, Trash2, FilePlus,
+  Plus, FileText, Trash2, FilePlus, RefreshCw,
 } from 'lucide-react';
 
 export function GitPanel() {
@@ -14,17 +14,63 @@ export function GitPanel() {
   const { fetchBranch, fetchStatus, fetchLog, stageAll, commit, push, pull } = useGit();
 
   const [commitMessage, setCommitMessage] = useState('');
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const showFeedback = (type: 'success' | 'error', msg: string) => {
+    setFeedback({ type, msg });
+    setTimeout(() => setFeedback(null), 3000);
+  };
+
+  const refreshAll = useCallback(async () => {
+    setLoading(true);
+    try {
+      await Promise.all([fetchBranch(), fetchStatus(), fetchLog()]);
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchBranch, fetchStatus, fetchLog]);
 
   useEffect(() => {
-    fetchBranch();
-    fetchStatus();
-    fetchLog();
-  }, [fetchBranch, fetchStatus, fetchLog]);
+    refreshAll();
+  }, [refreshAll]);
 
   const handleCommit = async () => {
     if (!commitMessage.trim()) return;
-    await commit(commitMessage);
-    setCommitMessage('');
+    try {
+      await commit(commitMessage);
+      setCommitMessage('');
+      showFeedback('success', 'Committed successfully');
+    } catch {
+      showFeedback('error', 'Commit failed');
+    }
+  };
+
+  const handleStageAll = async () => {
+    try {
+      await stageAll();
+      showFeedback('success', 'All files staged');
+    } catch {
+      showFeedback('error', 'Stage failed');
+    }
+  };
+
+  const handlePush = async () => {
+    try {
+      await push();
+      showFeedback('success', 'Pushed to remote');
+    } catch {
+      showFeedback('error', 'Push failed');
+    }
+  };
+
+  const handlePull = async () => {
+    try {
+      await pull();
+      showFeedback('success', 'Pulled from remote');
+    } catch {
+      showFeedback('error', 'Pull failed');
+    }
   };
 
   const bg = theme === 'dark' ? 'bg-zinc-900' : 'bg-white';
@@ -44,22 +90,38 @@ export function GitPanel() {
   };
 
   return (
-    <div className={`h-full flex flex-col ${bg} border-l ${border} overflow-hidden`}>
+    <div className={`h-full flex flex-col ${bg} overflow-hidden`}>
       {/* Header */}
       <div className={`flex items-center gap-2 px-3 py-2 border-b ${border}`}>
         <GitBranch size={14} className="text-blue-400" />
-        <span className="text-xs font-medium">{gitBranch || 'No branch'}</span>
+        <span className="text-xs font-medium flex-1">{gitBranch || 'No branch'}</span>
+        <button
+          onClick={refreshAll}
+          className={`p-0.5 rounded ${textMuted} hover:text-blue-400 ${loading ? 'animate-spin' : ''}`}
+          title="Refresh"
+        >
+          <RefreshCw size={12} />
+        </button>
       </div>
+
+      {/* Feedback */}
+      {feedback && (
+        <div className={`px-3 py-1.5 text-[11px] ${
+          feedback.type === 'success' ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'
+        }`}>
+          {feedback.msg}
+        </div>
+      )}
 
       {/* Actions */}
       <div className={`flex items-center gap-1 px-3 py-2 border-b ${border}`}>
-        <button onClick={stageAll} className={`flex items-center gap-1 px-2 py-1 text-xs rounded ${btnBg}`}>
+        <button onClick={handleStageAll} className={`flex items-center gap-1 px-2 py-1 text-xs rounded ${btnBg}`}>
           <Plus size={12} /> Stage All
         </button>
-        <button onClick={push} className={`flex items-center gap-1 px-2 py-1 text-xs rounded ${btnBg}`}>
+        <button onClick={handlePush} className={`flex items-center gap-1 px-2 py-1 text-xs rounded ${btnBg}`}>
           <Upload size={12} /> Push
         </button>
-        <button onClick={pull} className={`flex items-center gap-1 px-2 py-1 text-xs rounded ${btnBg}`}>
+        <button onClick={handlePull} className={`flex items-center gap-1 px-2 py-1 text-xs rounded ${btnBg}`}>
           <Download size={12} /> Pull
         </button>
       </div>

@@ -123,6 +123,11 @@ export function isMarkdown(filePath: string): boolean {
   return ext === 'md' || ext === 'mdx' || ext === 'markdown';
 }
 
+export function isHtml(filePath: string): boolean {
+  const ext = filePath.split('.').pop()?.toLowerCase() || '';
+  return ext === 'html' || ext === 'htm';
+}
+
 // Common Monaco languages, organized by group, for language selector menu
 export interface LanguageOption {
   value: string;

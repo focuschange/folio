@@ -367,10 +367,10 @@ function App() {
         else if (key === 'i') id = 'show-info';
         else if (key === 's') id = 'save-as';
         else if (key === 'v') {
-          // Only intercept ⌘⇧V when current tab is markdown — otherwise let paste-without-formatting pass through
+          // Only intercept ⌘⇧V when current tab is markdown or HTML — otherwise let paste-without-formatting pass through
           const state = useAppStore.getState();
           const activeTab = state.tabs.find(t => t.id === state.activeTabId);
-          if (activeTab && activeTab.language === 'markdown') id = 'toggle-preview';
+          if (activeTab && (activeTab.language === 'markdown' || activeTab.language === 'html')) id = 'toggle-preview';
         }
       } else if (meta && alt && !shift) {
         if (key === 'b') id = 'toggle-right-panel';

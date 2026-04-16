@@ -3,7 +3,8 @@ import { EditorTabs } from './EditorTabs';
 import { BreadcrumbBar } from './BreadcrumbBar';
 import { MonacoWrapper } from './MonacoWrapper';
 import { MarkdownPreview } from '../Markdown/MarkdownPreview';
-import { isMarkdown } from '../../utils/languages';
+import { HtmlPreview } from '../Markdown/HtmlPreview';
+import { isMarkdown, isHtml } from '../../utils/languages';
 import { FileText, FolderOpen } from 'lucide-react';
 import { useFileSystem } from '../../hooks/useFileSystem';
 
@@ -16,6 +17,8 @@ export function EditorArea() {
   const { openFolder } = useFileSystem();
 
   const showMarkdownPreview = activeTab && isMarkdown(activeTab.path) && previewVisible;
+  const showHtmlPreview = activeTab && isHtml(activeTab.path) && previewVisible;
+  const showPreview = showMarkdownPreview || showHtmlPreview;
 
   if (!activeTab) {
     return (
@@ -57,14 +60,15 @@ export function EditorArea() {
       <EditorTabs />
       <BreadcrumbBar />
       <div className="flex-1 min-h-0 flex">
-        {showMarkdownPreview ? (
+        {showPreview ? (
           <>
             <div className="flex-1 min-w-0">
               <MonacoWrapper tab={activeTab} />
             </div>
             <div className={`w-px ${theme === 'dark' ? 'bg-zinc-700' : 'bg-zinc-200'}`} />
             <div className="flex-1 min-w-0">
-              <MarkdownPreview content={activeTab.content} filePath={activeTab.path} />
+              {showMarkdownPreview && <MarkdownPreview content={activeTab.content} filePath={activeTab.path} />}
+              {showHtmlPreview && <HtmlPreview content={activeTab.content} />}
             </div>
           </>
         ) : (

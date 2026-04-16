@@ -103,6 +103,7 @@ export function Toolbar() {
 
   const activeTab = tabs.find(t => t.id === activeTabId);
   const isMarkdown = activeTab?.language === 'markdown';
+  const isHtmlFile = activeTab?.language === 'html';
 
   // --- Action handlers ---
 
@@ -383,6 +384,20 @@ export function Toolbar() {
 
         {/* Git */}
         <ToolbarButton icon={<GitBranch size={iconSize} color={iconColor} />} tooltip="Git Panel" onClick={toggleGitPanel} active={rightPanelVisible && activeRightTab === 'git'} />
+
+        {/* HTML Preview toggle — shown only for HTML files (markdown has its own in Row2) */}
+        {isHtmlFile && (
+          <>
+            <Separator />
+            <ToolbarButton
+              icon={previewVisible ? <EyeOff size={iconSize} color={iconColor} /> : <Eye size={iconSize} color={iconColor} />}
+              tooltip={previewVisible ? "Hide Preview (⌘⇧V)" : "Show Preview (⌘⇧V)"}
+              onClick={togglePreview}
+              active={previewVisible}
+              disabled={!activeTab}
+            />
+          </>
+        )}
 
         {/* Spacer */}
         <div className="flex-1" />
