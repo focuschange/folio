@@ -64,7 +64,7 @@ export function EditorArea() {
             </div>
             <div className={`w-px ${theme === 'dark' ? 'bg-zinc-700' : 'bg-zinc-200'}`} />
             <div className="flex-1 min-w-0">
-              <MarkdownPreview content={activeTab.content} />
+              <MarkdownPreview content={activeTab.content} filePath={activeTab.path} />
             </div>
           </>
         ) : (

@@ -19,6 +19,7 @@ import { isFormatSupported } from '../../utils/formatter';
 import * as md from '../../utils/markdownActions';
 import { HeadingDropdown } from './HeadingDropdown';
 import { MoreMenuDropdown, type MoreMenuItem } from './MoreMenuDropdown';
+import { ImageInsertDialog } from '../Markdown/ImageInsertDialog';
 import { useAppStore } from '../../store/useAppStore';
 import { useTheme } from '../../hooks/useTheme';
 import { useFileSystem } from '../../hooks/useFileSystem';
@@ -236,7 +237,22 @@ export function Toolbar() {
   const handleTaskList = useCallback(() => { if (monacoEditorRef) md.prefixLines(monacoEditorRef, '- [ ] '); }, []);
   const handleQuote = useCallback(() => { if (monacoEditorRef) md.prefixLines(monacoEditorRef, '> '); }, []);
   const handleLink = useCallback(() => { if (monacoEditorRef) md.insertLink(monacoEditorRef); }, []);
-  const handleImage = useCallback(() => { if (monacoEditorRef) md.insertImage(monacoEditorRef); }, []);
+  const [imageDialogOpen, setImageDialogOpen] = useState(false);
+  const handleImage = useCallback(() => { setImageDialogOpen(true); }, []);
+  const handleImageInsert = useCallback((result: { url: string; alt: string; width?: number; height?: number }) => {
+    if (!monacoEditorRef) return;
+    const { url, alt, width, height } = result;
+    // If size is specified, use <img> HTML tag; otherwise use standard markdown
+    if (width || height) {
+      const sizeAttrs = [
+        width ? `width="${width}"` : '',
+        height ? `height="${height}"` : '',
+      ].filter(Boolean).join(' ');
+      md.insertAtCursor(monacoEditorRef, `<img src="${url}" alt="${alt || ''}" ${sizeAttrs} />`);
+    } else {
+      md.insertAtCursor(monacoEditorRef, `![${alt || 'image'}](${url})`);
+    }
+  }, []);
   const handleCodeBlock = useCallback(() => { if (monacoEditorRef) md.insertCodeBlock(monacoEditorRef, ''); }, []);
   const handleHorizontalRule = useCallback(() => { if (monacoEditorRef) md.insertHorizontalRule(monacoEditorRef); }, []);
   const handleMathBlock = useCallback(() => { if (monacoEditorRef) md.insertMathBlock(monacoEditorRef); }, []);
@@ -400,6 +416,13 @@ export function Toolbar() {
           }}
         />
       )}
+
+      {/* Image insert dialog */}
+      <ImageInsertDialog
+        open={imageDialogOpen}
+        onClose={() => setImageDialogOpen(false)}
+        onInsert={handleImageInsert}
+      />
     </div>
   );
 }

@@ -43,7 +43,7 @@ export interface GitLogEntry {
   message: string;
 }
 
-export type RightTab = 'outline' | 'files' | 'git' | 'info' | 'todos' | 'toc' | 'links' | 'recent' | 'bookmarks';
+export type RightTab = 'outline' | 'files' | 'git' | 'info' | 'todos' | 'toc' | 'links' | 'recent' | 'bookmarks' | 'images';
 
 export interface TodoItem {
   type: 'TODO' | 'FIXME' | 'HACK';
@@ -57,6 +57,13 @@ export interface LinkInfo {
   url: string;
   lineNumber: number;
   kind: 'markdown' | 'html' | 'raw';
+}
+
+export interface ImageInfo {
+  alt: string;
+  url: string;
+  lineNumber: number;
+  kind: 'markdown' | 'html';
 }
 
 export interface OutlineSymbol {
