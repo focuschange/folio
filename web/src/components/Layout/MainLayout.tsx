@@ -80,7 +80,8 @@ export function MainLayout() {
     if (Math.abs(delta) < 2) {
       sidebarWidthRef.current = sidebarWidth;
     }
-    const newWidth = Math.max(140, Math.min(600, sidebarWidthRef.current + delta));
+    // Minimum lowered to 50 so users can drag the panel down to ~1/3 of the default width
+    const newWidth = Math.max(50, Math.min(600, sidebarWidthRef.current + delta));
     setSidebarWidth(newWidth);
   }, [sidebarWidth]);
 
@@ -88,7 +89,7 @@ export function MainLayout() {
     if (Math.abs(delta) < 2) {
       rightWidthRef.current = rightWidth;
     }
-    const newWidth = Math.max(140, Math.min(500, rightWidthRef.current - delta));
+    const newWidth = Math.max(50, Math.min(500, rightWidthRef.current - delta));
     setRightWidth(newWidth);
   }, [rightWidth]);
 
@@ -152,7 +153,7 @@ export function MainLayout() {
         {/* Left: File Tree / Search */}
         {sidebarVisible && !zenMode && (
           <>
-            <div style={{ width: sidebarWidth, minWidth: 140 }} className="flex-shrink-0 overflow-hidden">
+            <div style={{ width: sidebarWidth, minWidth: 50 }} className="flex-shrink-0 overflow-hidden">
               {searchVisible ? <ProjectSearchPanel /> : <FileTree />}
             </div>
             <Resizer onDrag={handleSidebarDrag} />
@@ -178,7 +179,7 @@ export function MainLayout() {
         {rightPanelVisible && !zenMode && (
           <>
             <Resizer onDrag={handleRightDrag} />
-            <div style={{ width: rightWidth, minWidth: 140 }} className="flex-shrink-0 overflow-hidden">
+            <div style={{ width: rightWidth, minWidth: 50 }} className="flex-shrink-0 overflow-hidden">
               <RightPanel />
             </div>
           </>

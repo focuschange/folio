@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { useFileSystem } from '../../hooks/useFileSystem';
 import { FileIcon, FolderIcon, isEditableFile } from '../../utils/fileIcons';
-import { ChevronRight, ChevronDown, Filter, ChevronsDownUp, ChevronsUpDown, FolderPlus, X } from 'lucide-react';
+import { ChevronRight, ChevronDown, ChevronLeft, Filter, ChevronsDownUp, ChevronsUpDown, FolderPlus, X } from 'lucide-react';
 import type { FileEntry } from '../../types';
 
 function TreeNode({ entry, depth = 0 }: { entry: FileEntry; depth?: number }) {
@@ -135,6 +135,7 @@ export function FileTree() {
   const collapseAllDirs = useAppStore(s => s.collapseAllDirs);
   const expandAllDirs = useAppStore(s => s.expandAllDirs);
   const reorderProjectRoots = useAppStore(s => s.reorderProjectRoots);
+  const resizeSidebar = useAppStore(s => s.resizeSidebar);
   const [filter, setFilter] = useState('');
   const [rootDragIndex, setRootDragIndex] = useState<number | null>(null);
   const isAllCollapsed = expandedDirs.size === 0;
@@ -169,6 +170,20 @@ export function FileTree() {
       <div className={`flex items-center justify-between px-3 py-2 text-[11px] font-semibold uppercase tracking-wider ${textMuted}`}>
         <span className="truncate">{rootName}</span>
         <div className="flex items-center gap-1">
+          <button
+            onClick={() => resizeSidebar(-80)}
+            className={`p-0.5 rounded ${theme === 'dark' ? 'hover:bg-zinc-700 text-zinc-500 hover:text-zinc-300' : 'hover:bg-zinc-200 text-zinc-400 hover:text-zinc-600'}`}
+            title="Narrow Sidebar (⌘⌥←)"
+          >
+            <ChevronLeft size={14} />
+          </button>
+          <button
+            onClick={() => resizeSidebar(80)}
+            className={`p-0.5 rounded ${theme === 'dark' ? 'hover:bg-zinc-700 text-zinc-500 hover:text-zinc-300' : 'hover:bg-zinc-200 text-zinc-400 hover:text-zinc-600'}`}
+            title="Widen Sidebar (⌘⌥→)"
+          >
+            <ChevronRight size={14} />
+          </button>
           <button
             onClick={isAllCollapsed ? expandAllDirs : collapseAllDirs}
             className={`p-0.5 rounded ${theme === 'dark' ? 'hover:bg-zinc-700 text-zinc-500 hover:text-zinc-300' : 'hover:bg-zinc-200 text-zinc-400 hover:text-zinc-600'}`}

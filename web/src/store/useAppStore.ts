@@ -112,6 +112,8 @@ interface AppState {
   setSidebarWidth: (w: number) => void;
   setRightWidth: (w: number) => void;
   setTerminalHeight: (h: number) => void;
+  resizeSidebar: (delta: number) => void;
+  resizeRightPanel: (delta: number) => void;
 
   // Actions - Session
   restoreSession: (session: SessionState) => void;
@@ -428,6 +430,23 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSidebarWidth: (w) => set({ sidebarWidth: w }),
   setRightWidth: (w) => set({ rightWidth: w }),
   setTerminalHeight: (h) => set({ terminalHeight: h }),
+
+  resizeSidebar: (delta) => set(state => {
+    const next = Math.max(50, Math.min(600, state.sidebarWidth + delta));
+    return {
+      sidebarWidth: next,
+      // If hidden, auto-show the sidebar when the user asks to resize it
+      sidebarVisible: state.sidebarVisible || delta > 0,
+    };
+  }),
+
+  resizeRightPanel: (delta) => set(state => {
+    const next = Math.max(50, Math.min(500, state.rightWidth + delta));
+    return {
+      rightWidth: next,
+      rightPanelVisible: state.rightPanelVisible || delta > 0,
+    };
+  }),
 
   // Session
   restoreSession: (session) => set({

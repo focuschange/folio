@@ -17,6 +17,7 @@ type ActionId =
   | 'toggle-outline' | 'toggle-terminal' | 'toggle-git-panel'
   | 'zen-mode'
   | 'toggle-preview'
+  | 'sidebar-narrow' | 'sidebar-widen' | 'rightpanel-widen' | 'rightpanel-narrow'
   | 'window-minimize' | 'window-zoom' | 'window-fullscreen';
 
 function App() {
@@ -175,6 +176,18 @@ function App() {
           break;
         case 'toggle-preview':
           store.togglePreview();
+          break;
+        case 'sidebar-narrow':
+          store.resizeSidebar(-80);
+          break;
+        case 'sidebar-widen':
+          store.resizeSidebar(80);
+          break;
+        case 'rightpanel-widen':
+          store.resizeRightPanel(80);
+          break;
+        case 'rightpanel-narrow':
+          store.resizeRightPanel(-80);
           break;
         case 'zen-mode': {
           store.toggleZenMode();
@@ -361,12 +374,16 @@ function App() {
         }
       } else if (meta && alt && !shift) {
         if (key === 'b') id = 'toggle-right-panel';
+        else if (key === 'arrowleft') id = 'sidebar-narrow';
+        else if (key === 'arrowright') id = 'sidebar-widen';
       } else if (!meta && shift && alt) {
         // Shift+Option+F → Format Document (VS Code standard)
         if (key === 'f' || key === 'ƒ') id = 'format-document';
       } else if (meta && shift && alt) {
         // Cmd+Shift+Option+F → Format Selection
         if (key === 'f' || key === 'ƒ') id = 'format-selection';
+        else if (key === 'arrowleft') id = 'rightpanel-widen';
+        else if (key === 'arrowright') id = 'rightpanel-narrow';
       } else if (!meta && !shift && !alt) {
         if (key === 'f11') id = 'zen-mode';
       }
