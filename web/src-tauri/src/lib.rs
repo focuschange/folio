@@ -173,6 +173,8 @@ pub fn run() {
             terminal_commands::run_command,
             // AI commands
             ai_commands::ai_chat,
+            ai_commands::ai_chat_stream,
+            ai_commands::ai_edit,
             ai_commands::load_ai_config,
             ai_commands::save_ai_config,
             // SSH commands

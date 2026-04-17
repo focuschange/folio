@@ -116,6 +116,8 @@ interface AppState {
   addChatMessage: (msg: ChatMessage) => void;
   clearChatMessages: () => void;
   setChatLoading: (v: boolean) => void;
+  appendToLastAssistantMessage: (text: string) => void;
+  setLastAssistantMessage: (content: string) => void;
 
   // Actions - Settings
   updateSettings: (partial: Partial<AppSettings>) => void;
@@ -433,6 +435,20 @@ export const useAppStore = create<AppState>((set, get) => ({
   addChatMessage: (msg) => set(state => ({ chatMessages: [...state.chatMessages, msg] })),
   clearChatMessages: () => set({ chatMessages: [] }),
   setChatLoading: (v) => set({ chatLoading: v }),
+  appendToLastAssistantMessage: (text) => set(state => {
+    const list = state.chatMessages;
+    if (list.length === 0 || list[list.length - 1].role !== 'assistant') return state;
+    const last = list[list.length - 1];
+    const next = [...list.slice(0, -1), { ...last, content: last.content + text }];
+    return { chatMessages: next };
+  }),
+  setLastAssistantMessage: (content) => set(state => {
+    const list = state.chatMessages;
+    if (list.length === 0 || list[list.length - 1].role !== 'assistant') return state;
+    const last = list[list.length - 1];
+    const next = [...list.slice(0, -1), { ...last, content }];
+    return { chatMessages: next };
+  }),
 
   reorderProjectRoots: (fromIndex, toIndex) =>
     set(state => {
