@@ -46,12 +46,18 @@ const extensionToLanguage: Record<string, string> = {
   hs: 'haskell',
   clj: 'clojure',
   groovy: 'groovy',
+  gvy: 'groovy',
+  gy: 'groovy',
+  gradle: 'groovy',
 
   // Scripting / Config
   sh: 'shell',
   bash: 'shell',
   zsh: 'shell',
   fish: 'shell',
+  ksh: 'shell',
+  ash: 'shell',
+  command: 'shell',
   ps1: 'powershell',
   bat: 'bat',
   cmd: 'bat',
@@ -107,6 +113,20 @@ const filenameToLanguage: Record<string, string> = {
   '.babelrc': 'json',
   'tsconfig.json': 'json',
   'package.json': 'json',
+  // Shell / Bash config files
+  '.bashrc': 'shell',
+  '.bash_profile': 'shell',
+  '.bash_logout': 'shell',
+  '.bash_aliases': 'shell',
+  '.zshrc': 'shell',
+  '.zprofile': 'shell',
+  '.zshenv': 'shell',
+  '.profile': 'shell',
+  '.inputrc': 'shell',
+  // Groovy / Gradle
+  'build.gradle': 'groovy',
+  'settings.gradle': 'groovy',
+  'Jenkinsfile': 'groovy',
 };
 
 export function getLanguageFromPath(filePath: string): string {
@@ -177,6 +197,7 @@ export const ALL_LANGUAGES: LanguageOption[] = [
   { value: 'sql', label: 'SQL', group: 'data' },
   // Shell
   { value: 'shell', label: 'Shell / Bash', group: 'shell' },
+  { value: 'bash', label: 'Bash', group: 'shell' },
   { value: 'powershell', label: 'PowerShell', group: 'shell' },
   { value: 'bat', label: 'Batch', group: 'shell' },
   { value: 'dockerfile', label: 'Dockerfile', group: 'shell' },

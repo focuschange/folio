@@ -11,11 +11,18 @@ import { RecentFilesPanel } from './RecentFilesPanel';
 import { BookmarksPanel } from './BookmarksPanel';
 import { ImageGalleryPanel } from './ImageGalleryPanel';
 import { AiChatPanel } from './AiChatPanel';
+import { SnippetsPanel } from './SnippetsPanel';
+import { TaskRunnerPanel } from './TaskRunnerPanel';
+import { DocPreviewPanel } from './DocPreviewPanel';
+import { SshPanel } from './SshPanel';
+import { SshTunnelPanel } from './SshTunnelPanel';
+import { JekyllPanel } from './JekyllPanel';
 import {
   FileCode2, Files, GitBranch, Info,
   Bug, Hash, Link2, History, Bookmark,
   Image as ImageIcon, MessageSquare,
   ChevronLeft, ChevronRight, MoreHorizontal,
+  Code2, Play, BookOpen, Server, ArrowRightLeft, Globe,
 } from 'lucide-react';
 import type { RightTab } from '../../types';
 
@@ -31,6 +38,12 @@ const tabItems: { id: RightTab; icon: typeof FileCode2; label: string }[] = [
   { id: 'bookmarks', icon: Bookmark, label: 'Bookmarks' },
   { id: 'images', icon: ImageIcon, label: 'Images' },
   { id: 'chat', icon: MessageSquare, label: 'AI Chat' },
+  { id: 'snippets', icon: Code2, label: 'Snippets' },
+  { id: 'tasks', icon: Play, label: 'Tasks' },
+  { id: 'docs', icon: BookOpen, label: 'Docs' },
+  { id: 'ssh', icon: Server, label: 'SSH' },
+  { id: 'tunnel', icon: ArrowRightLeft, label: 'Tunnel' },
+  { id: 'jekyll', icon: Globe, label: 'Jekyll' },
 ];
 
 export function RightPanel() {
@@ -47,8 +60,6 @@ export function RightPanel() {
   const hoverBg = theme === 'dark' ? 'hover:bg-zinc-800' : 'hover:bg-zinc-100';
 
   // --- Responsive tab overflow ---
-  // When the panel is too narrow to fit all tab icons, hide the rightmost ones behind a "more" dropdown.
-  // The currently active tab is always kept inline (even if it would otherwise overflow).
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const moreRef = useRef<HTMLDivElement>(null);
@@ -57,7 +68,6 @@ export function RightPanel() {
   const [visibleCount, setVisibleCount] = useState<number>(tabItems.length);
   const [moreOpen, setMoreOpen] = useState(false);
 
-  // Measure natural widths of each tab once items render (they always render; we hide via display:none)
   useLayoutEffect(() => {
     widthsRef.current = tabRefs.current
       .slice(0, tabItems.length)
@@ -98,13 +108,11 @@ export function RightPanel() {
     return () => ro.disconnect();
   }, []);
 
-  // Ensure the active tab is always inline — if it would be overflowed, swap it with the last visible tab
   const { orderedTabs, visibleTabs, hiddenTabs } = useMemo(() => {
     const ordered = [...tabItems];
     if (visibleCount < tabItems.length) {
       const activeIndex = ordered.findIndex(t => t.id === activeRightTab);
       if (activeIndex >= visibleCount) {
-        // Move the active tab to the last visible slot
         const [active] = ordered.splice(activeIndex, 1);
         ordered.splice(visibleCount - 1, 0, active);
       }
@@ -117,7 +125,6 @@ export function RightPanel() {
   }, [visibleCount, activeRightTab]);
   void visibleTabs;
 
-  // Close the "more" popup when clicking outside
   useEffect(() => {
     if (!moreOpen) return;
     const handler = (e: MouseEvent) => {
@@ -130,12 +137,11 @@ export function RightPanel() {
 
   return (
     <div className={`h-full flex flex-col ${bg} border-l ${border} overflow-hidden`}>
-      {/* Tab bar — responsive overflow + resize controls on the right */}
+      {/* Tab bar */}
       <div
         ref={tabsContainerRef}
         className={`flex items-center gap-0.5 px-1 py-1 border-b ${border} shrink-0`}
       >
-        {/* Render all tabs but hide those beyond visibleCount */}
         {orderedTabs.map(({ id, icon: Icon, label }, i) => {
           const isActive = activeRightTab === id;
           const hidden = i >= visibleCount;
@@ -155,7 +161,7 @@ export function RightPanel() {
           );
         })}
 
-        {/* More (…) dropdown for overflowed tabs */}
+        {/* More dropdown */}
         <div
           ref={moreRef}
           className="relative"
@@ -172,7 +178,7 @@ export function RightPanel() {
           </button>
           {moreOpen && (
             <div
-              className={`absolute right-0 top-full mt-0.5 min-w-[140px] rounded border shadow-lg z-20 py-1 ${
+              className={`absolute right-0 top-full mt-0.5 min-w-[140px] rounded border shadow-lg z-20 py-1 max-h-[300px] overflow-y-auto ${
                 theme === 'dark' ? 'bg-zinc-800 border-zinc-700 text-zinc-200' : 'bg-white border-zinc-200 text-zinc-800'
               }`}
             >
@@ -193,10 +199,8 @@ export function RightPanel() {
           )}
         </div>
 
-        {/* Spacer pushes resize controls to the right edge */}
         <div className="flex-1" />
 
-        {/* Resize buttons (always visible, reserved space) */}
         <div ref={rightControlsRef} className="flex items-center gap-0.5 shrink-0">
           <button
             onClick={() => resizeRightPanel(80)}
@@ -228,6 +232,12 @@ export function RightPanel() {
         {activeRightTab === 'bookmarks' && <BookmarksPanel />}
         {activeRightTab === 'images' && <ImageGalleryPanel />}
         {activeRightTab === 'chat' && <AiChatPanel />}
+        {activeRightTab === 'snippets' && <SnippetsPanel />}
+        {activeRightTab === 'tasks' && <TaskRunnerPanel />}
+        {activeRightTab === 'docs' && <DocPreviewPanel />}
+        {activeRightTab === 'ssh' && <SshPanel />}
+        {activeRightTab === 'tunnel' && <SshTunnelPanel />}
+        {activeRightTab === 'jekyll' && <JekyllPanel />}
       </div>
     </div>
   );
