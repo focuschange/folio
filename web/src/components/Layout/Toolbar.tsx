@@ -12,11 +12,13 @@ import {
   Sun, Moon,
   Terminal,
   Wand2, WandSparkles,
+  Sparkles,
   Code, Minus, Sigma, GitGraph, FileText, IndentIncrease, IndentDecrease,
   Eye, EyeOff,
 } from 'lucide-react';
 import { isFormatSupported } from '../../utils/formatter';
 import * as md from '../../utils/markdownActions';
+import { startInlineEdit } from '../Editor/inlineEdit';
 import { HeadingDropdown } from './HeadingDropdown';
 import { MoreMenuDropdown, type MoreMenuItem } from './MoreMenuDropdown';
 import { ImageInsertDialog } from '../Markdown/ImageInsertDialog';
@@ -323,6 +325,18 @@ export function Toolbar() {
 
   const handleInsertTable = useCallback(() => { if (monacoEditorRef) md.insertTable(monacoEditorRef); }, []);
 
+  const handleAiEdit = useCallback(() => {
+    if (!monacoEditorRef || !activeTab) return;
+    const model = monacoEditorRef.getModel();
+    if (!model) return;
+    startInlineEdit({
+      editor: monacoEditorRef,
+      model,
+      theme: theme === 'light' ? 'light' : 'dark',
+      language: activeTab.language ?? model.getLanguageId() ?? 'plaintext',
+    });
+  }, [activeTab, theme]);
+
   // Split toolbar into two rows when editing markdown:
   //  Row 1 — File / Edit / Search / View / Format / Git / Theme / Settings (always)
   //  Row 2 — Markdown-specific buttons (only when current tab is markdown)
@@ -379,6 +393,9 @@ export function Toolbar() {
         {/* Format */}
         <ToolbarButton icon={<Wand2 size={iconSize} color={iconColor} />} tooltip="Format Document (⇧⌥F)" onClick={handleFormatDocument} disabled={!activeTab} />
         <ToolbarButton icon={<WandSparkles size={iconSize} color={iconColor} />} tooltip="Format Selection (⌘⇧⌥F)" onClick={handleFormatSelection} disabled={!activeTab} />
+
+        {/* AI Inline Edit */}
+        <ToolbarButton icon={<Sparkles size={iconSize} color="#8b5cf6" />} tooltip="AI Edit (⌘K)" onClick={handleAiEdit} disabled={!activeTab} />
 
         <Separator />
 

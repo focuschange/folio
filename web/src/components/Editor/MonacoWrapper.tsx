@@ -9,6 +9,7 @@ loader.config({ monaco });
 import { useAppStore } from '../../store/useAppStore';
 import { setMonacoEditorRef } from '../Layout/Toolbar';
 import { formatCode, formatSelection, isFormatSupported } from '../../utils/formatter';
+import { startInlineEdit } from './inlineEdit';
 import type { EditorTab } from '../../types';
 
 interface MonacoWrapperProps {
@@ -157,6 +158,24 @@ export function MonacoWrapper({ tab }: MonacoWrapperProps) {
         if (!activeTab) return;
         useAppStore.getState().clearBookmarksForFile(activeTab.path);
         void ed; // no-op, decorations updated by useEffect
+      },
+    });
+
+    // AI Inline Edit (⌘K) — overrides Monaco's chord prefix default which is rarely used
+    editor.addAction({
+      id: 'folio.ai-inline-edit',
+      label: 'AI: Inline Edit…',
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK],
+      contextMenuGroupId: '1_modification',
+      contextMenuOrder: 1.4,
+      run: (ed) => {
+        const model = ed.getModel();
+        if (!model) return;
+        const state = useAppStore.getState();
+        const activeTab = state.tabs.find(t => t.id === state.activeTabId);
+        const language = activeTab?.language ?? model.getLanguageId() ?? 'plaintext';
+        const theme = (state.settings.theme === 'light' ? 'light' : 'dark') as 'dark' | 'light';
+        startInlineEdit({ editor: ed, model, theme, language });
       },
     });
 
