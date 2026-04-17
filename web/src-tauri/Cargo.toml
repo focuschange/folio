@@ -22,4 +22,6 @@ serde_json = "1"
 regex = "1"
 dirs = "5"
 tokio = { version = "1", features = ["sync"] }
-reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream"], default-features = false }
+futures-util = "0.3"
+ssh2 = { version = "0.9", features = ["vendored-openssl"] }

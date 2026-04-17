@@ -17,6 +17,7 @@ type ActionId =
   | 'toggle-outline' | 'toggle-terminal' | 'toggle-git-panel'
   | 'zen-mode'
   | 'toggle-preview'
+  | 'split-vertical' | 'split-horizontal'
   | 'sidebar-narrow' | 'sidebar-widen' | 'rightpanel-widen' | 'rightpanel-narrow'
   | 'window-minimize' | 'window-zoom' | 'window-fullscreen';
 
@@ -176,6 +177,12 @@ function App() {
           break;
         case 'toggle-preview':
           store.togglePreview();
+          break;
+        case 'split-vertical':
+          store.toggleSplit('vertical');
+          break;
+        case 'split-horizontal':
+          store.toggleSplit('horizontal');
           break;
         case 'sidebar-narrow':
           store.resizeSidebar(-80);
@@ -359,6 +366,7 @@ function App() {
         else if (key === ',') id = 'settings';
         else if (key === 'b') id = 'toggle-sidebar';
         else if (key === 'm') id = 'window-minimize';
+        else if (key === '\\') id = 'split-vertical';
       } else if (meta && shift && !alt) {
         if (key === 'f') id = 'find-in-project';
         else if (key === 'o') id = 'show-outline';
@@ -366,6 +374,7 @@ function App() {
         else if (key === 'g') id = 'show-git';
         else if (key === 'i') id = 'show-info';
         else if (key === 's') id = 'save-as';
+        else if (key === '\\') id = 'split-horizontal';
         else if (key === 'v') {
           // Only intercept ⌘⇧V when current tab is markdown or HTML — otherwise let paste-without-formatting pass through
           const state = useAppStore.getState();

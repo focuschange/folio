@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { EditorTab, AppSettings, FileEntry, GitStatusEntry, GitLogEntry, SessionState, RightTab, TodoItem, LinkInfo, ChatMessage } from '../types';
+import type { EditorTab, AppSettings, FileEntry, GitStatusEntry, GitLogEntry, SessionState, RightTab, TodoItem, LinkInfo, ChatMessage, SplitDirection } from '../types';
 import { defaultSettings } from '../types';
 import { getLanguageFromPath } from '../utils/languages';
 
@@ -44,6 +44,10 @@ interface AppState {
   todoItems: TodoItem[];
   fileLinks: LinkInfo[];
   bookmarks: Record<string, number[]>;  // filePath → line numbers
+
+  // Editor split
+  splitDirection: SplitDirection;
+  splitTabId: string | null;
 
   // Markdown preview visibility (markdown files only)
   previewVisible: boolean;
@@ -107,9 +111,13 @@ interface AppState {
   reorderProjectRoots: (fromIndex: number, toIndex: number) => void;
   togglePreview: () => void;
   setPreviewVisible: (v: boolean) => void;
+  toggleSplit: (direction: SplitDirection) => void;
+  setSplitTab: (tabId: string | null) => void;
   addChatMessage: (msg: ChatMessage) => void;
   clearChatMessages: () => void;
   setChatLoading: (v: boolean) => void;
+  appendToLastAssistantMessage: (text: string) => void;
+  setLastAssistantMessage: (content: string) => void;
 
   // Actions - Settings
   updateSettings: (partial: Partial<AppSettings>) => void;
@@ -159,6 +167,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   todoItems: [],
   fileLinks: [],
   bookmarks: {},
+  splitDirection: 'none' as SplitDirection,
+  splitTabId: null,
   previewVisible: true,
   chatMessages: [],
   chatLoading: false,
@@ -412,9 +422,33 @@ export const useAppStore = create<AppState>((set, get) => ({
   togglePreview: () => set(state => ({ previewVisible: !state.previewVisible })),
   setPreviewVisible: (v) => set({ previewVisible: v }),
 
+  toggleSplit: (direction) => set(state => {
+    if (state.splitDirection === direction) {
+      return { splitDirection: 'none' as SplitDirection, splitTabId: null };
+    }
+    // Default split tab: pick another open tab or same tab
+    const splitTabId = state.splitTabId ?? state.activeTabId;
+    return { splitDirection: direction, splitTabId };
+  }),
+  setSplitTab: (tabId) => set({ splitTabId: tabId }),
+
   addChatMessage: (msg) => set(state => ({ chatMessages: [...state.chatMessages, msg] })),
   clearChatMessages: () => set({ chatMessages: [] }),
   setChatLoading: (v) => set({ chatLoading: v }),
+  appendToLastAssistantMessage: (text) => set(state => {
+    const list = state.chatMessages;
+    if (list.length === 0 || list[list.length - 1].role !== 'assistant') return state;
+    const last = list[list.length - 1];
+    const next = [...list.slice(0, -1), { ...last, content: last.content + text }];
+    return { chatMessages: next };
+  }),
+  setLastAssistantMessage: (content) => set(state => {
+    const list = state.chatMessages;
+    if (list.length === 0 || list[list.length - 1].role !== 'assistant') return state;
+    const last = list[list.length - 1];
+    const next = [...list.slice(0, -1), { ...last, content }];
+    return { chatMessages: next };
+  }),
 
   reorderProjectRoots: (fromIndex, toIndex) =>
     set(state => {

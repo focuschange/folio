@@ -7,18 +7,24 @@ import { HtmlPreview } from '../Markdown/HtmlPreview';
 import { isMarkdown, isHtml } from '../../utils/languages';
 import { FileText, FolderOpen } from 'lucide-react';
 import { useFileSystem } from '../../hooks/useFileSystem';
+import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
 
 export function EditorArea() {
   const theme = useAppStore(s => s.settings.theme);
   const tabs = useAppStore(s => s.tabs);
   const activeTabId = useAppStore(s => s.activeTabId);
   const previewVisible = useAppStore(s => s.previewVisible);
+  const splitDirection = useAppStore(s => s.splitDirection);
+  const splitTabId = useAppStore(s => s.splitTabId);
+  const setSplitTab = useAppStore(s => s.setSplitTab);
   const activeTab = tabs.find(t => t.id === activeTabId);
+  const splitTab = splitTabId ? tabs.find(t => t.id === splitTabId) : null;
   const { openFolder } = useFileSystem();
 
   const showMarkdownPreview = activeTab && isMarkdown(activeTab.path) && previewVisible;
   const showHtmlPreview = activeTab && isHtml(activeTab.path) && previewVisible;
   const showPreview = showMarkdownPreview || showHtmlPreview;
+  const isSplit = splitDirection !== 'none' && splitTab;
 
   if (!activeTab) {
     return (
@@ -53,28 +59,75 @@ export function EditorArea() {
     );
   }
 
+  const handleResizeHandle = `w-[3px] ${theme === 'dark' ? 'bg-zinc-700 hover:bg-blue-500' : 'bg-zinc-200 hover:bg-blue-400'} transition-colors cursor-col-resize`;
+  const handleResizeHandleH = `h-[3px] ${theme === 'dark' ? 'bg-zinc-700 hover:bg-blue-500' : 'bg-zinc-200 hover:bg-blue-400'} transition-colors cursor-row-resize`;
+
+  const renderMainEditor = () => {
+    if (showPreview) {
+      return (
+        <div className="h-full flex">
+          <div className="flex-1 min-w-0">
+            <MonacoWrapper tab={activeTab} />
+          </div>
+          <div className={`w-px ${theme === 'dark' ? 'bg-zinc-700' : 'bg-zinc-200'}`} />
+          <div className="flex-1 min-w-0">
+            {showMarkdownPreview && <MarkdownPreview content={activeTab.content} filePath={activeTab.path} />}
+            {showHtmlPreview && <HtmlPreview content={activeTab.content} />}
+          </div>
+        </div>
+      );
+    }
+    return <MonacoWrapper tab={activeTab} />;
+  };
+
+  const renderSplitEditor = () => {
+    if (!splitTab) return null;
+    return (
+      <div className="h-full flex flex-col">
+        {/* Split pane tab selector */}
+        <div className={`flex items-center gap-1 px-2 py-0.5 border-b shrink-0 ${
+          theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-zinc-100 border-zinc-200'
+        }`}>
+          {tabs.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setSplitTab(t.id)}
+              className={`px-2 py-0.5 text-[11px] rounded transition-colors truncate max-w-[120px] ${
+                t.id === splitTabId
+                  ? (theme === 'dark' ? 'bg-zinc-700 text-zinc-200' : 'bg-zinc-300 text-zinc-800')
+                  : (theme === 'dark' ? 'text-zinc-500 hover:bg-zinc-800' : 'text-zinc-400 hover:bg-zinc-200')
+              }`}
+            >
+              {t.name}
+            </button>
+          ))}
+        </div>
+        <div className="flex-1 min-h-0">
+          <MonacoWrapper tab={splitTab} key={`split-${splitTab.id}`} />
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className={`h-full flex flex-col overflow-hidden ${
       theme === 'dark' ? 'bg-zinc-800' : 'bg-white'
     }`}>
       <EditorTabs />
       <BreadcrumbBar />
-      <div className="flex-1 min-h-0 flex">
-        {showPreview ? (
-          <>
-            <div className="flex-1 min-w-0">
-              <MonacoWrapper tab={activeTab} />
-            </div>
-            <div className={`w-px ${theme === 'dark' ? 'bg-zinc-700' : 'bg-zinc-200'}`} />
-            <div className="flex-1 min-w-0">
-              {showMarkdownPreview && <MarkdownPreview content={activeTab.content} filePath={activeTab.path} />}
-              {showHtmlPreview && <HtmlPreview content={activeTab.content} />}
-            </div>
-          </>
+      <div className="flex-1 min-h-0">
+        {isSplit ? (
+          <PanelGroup orientation={splitDirection === 'vertical' ? 'vertical' : 'horizontal'}>
+            <Panel defaultSize={50} minSize={20}>
+              {renderMainEditor()}
+            </Panel>
+            <PanelResizeHandle className={splitDirection === 'vertical' ? handleResizeHandleH : handleResizeHandle} />
+            <Panel defaultSize={50} minSize={20}>
+              {renderSplitEditor()}
+            </Panel>
+          </PanelGroup>
         ) : (
-          <div className="flex-1 min-w-0">
-            <MonacoWrapper tab={activeTab} />
-          </div>
+          renderMainEditor()
         )}
       </div>
     </div>

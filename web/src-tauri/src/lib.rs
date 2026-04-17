@@ -1,6 +1,6 @@
 mod commands;
 
-use commands::{ai_commands, file_commands, git_commands, settings_commands, terminal_commands};
+use commands::{ai_commands, file_commands, git_commands, settings_commands, ssh_commands, terminal_commands};
 use tauri::{Emitter, Manager};
 use tauri::menu::{Menu, Submenu, MenuItem, PredefinedMenuItem};
 
@@ -139,6 +139,7 @@ pub fn run() {
             write_log("setup: done");
             Ok(())
         })
+        .manage(ssh_commands::SshState::default())
         .invoke_handler(tauri::generate_handler![
             // File commands
             file_commands::read_file,
@@ -172,8 +173,21 @@ pub fn run() {
             terminal_commands::run_command,
             // AI commands
             ai_commands::ai_chat,
+            ai_commands::ai_chat_stream,
+            ai_commands::ai_edit,
             ai_commands::load_ai_config,
             ai_commands::save_ai_config,
+            // SSH commands
+            ssh_commands::ssh_connect,
+            ssh_commands::ssh_disconnect,
+            ssh_commands::ssh_list_directory,
+            ssh_commands::ssh_read_file,
+            ssh_commands::ssh_write_file,
+            ssh_commands::load_ssh_connections,
+            ssh_commands::save_ssh_connections,
+            ssh_commands::ssh_open_tunnel,
+            ssh_commands::ssh_close_tunnel,
+            ssh_commands::ssh_list_tunnels,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

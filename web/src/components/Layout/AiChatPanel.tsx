@@ -1,9 +1,12 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
 import { useAppStore } from '../../store/useAppStore';
-import { Send, Trash2, FileCode2, Loader2, AlertCircle, Settings } from 'lucide-react';
+import { Send, Trash2, FileCode2, Loader2, AlertCircle, Settings, Square, Copy, ArrowDownToLine, Check } from 'lucide-react';
 import type { ChatMessage, AiConfig } from '../../types';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { streamAiChat, type StreamController } from '../../utils/aiStream';
+import { getMonacoEditorRef } from './Toolbar';
+import { insertAtCursor } from '../../utils/markdownActions';
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
@@ -12,6 +15,100 @@ async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Prom
   return invoke<T>(cmd, args);
 }
 
+// -------- Code block with Apply/Copy/Insert toolbar --------
+
+interface CodeBlockProps {
+  inline?: boolean;
+  className?: string;
+  children?: ReactNode;
+  theme: 'dark' | 'light';
+}
+
+function CodeBlock({ inline, className, children, theme }: CodeBlockProps) {
+  const [copied, setCopied] = useState(false);
+  const [applied, setApplied] = useState(false);
+
+  // Inline code renders as default
+  if (inline) {
+    return <code className={className}>{children}</code>;
+  }
+
+  const codeText = String(children).replace(/\n$/, '');
+  const lang = /language-(\w+)/.exec(className ?? '')?.[1] ?? '';
+
+  const doCopy = async () => {
+    await navigator.clipboard.writeText(codeText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1200);
+  };
+
+  const doInsert = () => {
+    const ed = getMonacoEditorRef();
+    if (!ed) return;
+    insertAtCursor(ed, codeText);
+  };
+
+  const doApply = () => {
+    const ed = getMonacoEditorRef();
+    if (!ed) return;
+    const sel = ed.getSelection();
+    const model = ed.getModel();
+    if (!sel || !model) return;
+    if (sel.isEmpty()) {
+      // No selection → replace whole file (with undo support via executeEdits)
+      const confirmed = window.confirm('선택 영역이 없습니다. 전체 파일을 이 코드로 교체할까요?');
+      if (!confirmed) return;
+      ed.executeEdits('ai-apply', [{ range: model.getFullModelRange(), text: codeText }]);
+    } else {
+      ed.executeEdits('ai-apply', [{ range: sel, text: codeText }]);
+    }
+    ed.focus();
+    setApplied(true);
+    setTimeout(() => setApplied(false), 1200);
+  };
+
+  const btnBase = theme === 'dark'
+    ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300'
+    : 'bg-zinc-200 hover:bg-zinc-300 text-zinc-700';
+
+  return (
+    <div className="relative group my-1.5">
+      <div className="flex items-center justify-between px-2 py-1 rounded-t bg-zinc-900/60 text-[10px] text-zinc-400">
+        <span className="font-mono">{lang || 'text'}</span>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={doCopy}
+            className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] ${btnBase}`}
+            title="Copy to clipboard"
+          >
+            {copied ? <Check size={10} /> : <Copy size={10} />}
+            <span>{copied ? 'Copied' : 'Copy'}</span>
+          </button>
+          <button
+            onClick={doInsert}
+            className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] ${btnBase}`}
+            title="Insert at cursor"
+          >
+            <ArrowDownToLine size={10} />
+            <span>Insert</span>
+          </button>
+          <button
+            onClick={doApply}
+            className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] ${applied ? 'bg-emerald-700 text-white' : btnBase}`}
+            title="Replace selection (or file if no selection)"
+          >
+            {applied ? <Check size={10} /> : null}
+            <span>{applied ? 'Applied' : 'Apply'}</span>
+          </button>
+        </div>
+      </div>
+      <pre className="!mt-0 !rounded-t-none"><code className={className}>{children}</code></pre>
+    </div>
+  );
+}
+
+// -------- Main panel --------
+
 export function AiChatPanel() {
   const theme = useAppStore(s => s.settings.theme);
   const chatMessages = useAppStore(s => s.chatMessages);
@@ -19,6 +116,8 @@ export function AiChatPanel() {
   const addChatMessage = useAppStore(s => s.addChatMessage);
   const clearChatMessages = useAppStore(s => s.clearChatMessages);
   const setChatLoading = useAppStore(s => s.setChatLoading);
+  const appendToLastAssistantMessage = useAppStore(s => s.appendToLastAssistantMessage);
+  const setLastAssistantMessage = useAppStore(s => s.setLastAssistantMessage);
   const tabs = useAppStore(s => s.tabs);
   const activeTabId = useAppStore(s => s.activeTabId);
   const toggleSettings = useAppStore(s => s.toggleSettings);
@@ -31,6 +130,7 @@ export function AiChatPanel() {
   const [aiConfig, setAiConfig] = useState<AiConfig | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const streamCtrlRef = useRef<StreamController | null>(null);
 
   const textMuted = theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400';
   const inputBg = theme === 'dark' ? 'bg-zinc-800' : 'bg-zinc-100';
@@ -38,7 +138,6 @@ export function AiChatPanel() {
   const userBg = theme === 'dark' ? 'bg-blue-900/30' : 'bg-blue-50';
   const assistantBg = theme === 'dark' ? 'bg-zinc-800/50' : 'bg-zinc-50';
 
-  // Load AI config on mount
   useEffect(() => {
     if (!isTauri) return;
     tauriInvoke<string>('load_ai_config')
@@ -53,10 +152,16 @@ export function AiChatPanel() {
       .catch(() => setAiConfig(null));
   }, []);
 
-  // Auto-scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages, chatLoading]);
+
+  // Cleanup: cancel any in-flight stream when panel unmounts
+  useEffect(() => {
+    return () => {
+      streamCtrlRef.current?.cancel();
+    };
+  }, []);
 
   const handleSend = useCallback(async () => {
     const text = input.trim();
@@ -65,49 +170,53 @@ export function AiChatPanel() {
     setError(null);
     setInput('');
 
-    // Add user message
     const userMsg: ChatMessage = { role: 'user', content: text, timestamp: Date.now() };
     addChatMessage(userMsg);
 
-    // Build messages for API
     const allMessages = [...chatMessages, userMsg];
     const apiMessages = allMessages.map(m => ({ role: m.role, content: m.content }));
 
-    // Build context
     const context = includeContext && activeTab
       ? `File: ${activeTab.path}\nLanguage: ${activeTab.language}\n\n${activeTab.content.slice(0, 8000)}`
       : undefined;
 
-    setChatLoading(true);
-    try {
-      if (!isTauri) {
-        // Mock response for web dev mode
-        await new Promise(r => setTimeout(r, 1000));
-        addChatMessage({
-          role: 'assistant',
-          content: 'This is a mock response. AI chat requires the Tauri desktop app with an API key configured in Settings.',
-          timestamp: Date.now(),
-        });
-        return;
-      }
-
-      const response = await tauriInvoke<string>('ai_chat', {
-        messages: apiMessages,
-        context,
-      });
-
+    if (!isTauri) {
       addChatMessage({
         role: 'assistant',
-        content: response,
+        content: 'This is a mock response. AI chat requires the Tauri desktop app with an API key configured in Settings.',
         timestamp: Date.now(),
       });
-    } catch (e: unknown) {
-      const errMsg = e instanceof Error ? e.message : String(e);
-      setError(errMsg);
-    } finally {
-      setChatLoading(false);
+      return;
     }
-  }, [input, chatLoading, chatMessages, includeContext, activeTab, addChatMessage, setChatLoading]);
+
+    // Placeholder assistant message — will be filled in by streaming chunks
+    addChatMessage({ role: 'assistant', content: '', timestamp: Date.now() });
+    setChatLoading(true);
+
+    const ctrl = await streamAiChat(
+      { messages: apiMessages, context },
+      {
+        onChunk: (delta) => appendToLastAssistantMessage(delta),
+        onDone: (full) => {
+          setLastAssistantMessage(full);
+          setChatLoading(false);
+          streamCtrlRef.current = null;
+        },
+        onError: (err) => {
+          setError(err);
+          setChatLoading(false);
+          streamCtrlRef.current = null;
+        },
+      },
+    );
+    streamCtrlRef.current = ctrl;
+  }, [input, chatLoading, chatMessages, includeContext, activeTab, addChatMessage, setChatLoading, appendToLastAssistantMessage, setLastAssistantMessage]);
+
+  const handleStop = useCallback(() => {
+    streamCtrlRef.current?.cancel();
+    streamCtrlRef.current = null;
+    setChatLoading(false);
+  }, [setChatLoading]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -116,12 +225,10 @@ export function AiChatPanel() {
     }
   };
 
-  // No API key configured
   const noApiKey = aiConfig && !aiConfig.apiKey;
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* Header */}
       <div className={`flex items-center justify-between px-3 py-1.5 text-[10px] uppercase tracking-wider ${textMuted}`}>
         <span>AI Chat</span>
         <div className="flex items-center gap-1">
@@ -147,7 +254,6 @@ export function AiChatPanel() {
         </div>
       </div>
 
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto px-3 py-2 space-y-3">
         {chatMessages.length === 0 && !noApiKey && (
           <div className={`text-center py-8 text-xs ${textMuted}`}>
@@ -172,31 +278,38 @@ export function AiChatPanel() {
           </div>
         )}
 
-        {chatMessages.map((msg, idx) => (
-          <div key={idx} className={`rounded-lg px-3 py-2 text-xs ${
-            msg.role === 'user' ? userBg : assistantBg
-          }`}>
-            <div className={`text-[10px] mb-1 ${textMuted}`}>
-              {msg.role === 'user' ? 'You' : 'AI'}
-            </div>
-            {msg.role === 'assistant' ? (
-              <div className="prose prose-sm prose-invert max-w-none [&_pre]:bg-zinc-900 [&_pre]:rounded [&_pre]:p-2 [&_pre]:text-[11px] [&_code]:text-[11px] [&_p]:my-1">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {msg.content}
-                </ReactMarkdown>
+        {chatMessages.map((msg, idx) => {
+          const isLast = idx === chatMessages.length - 1;
+          const isStreamingThis = isLast && chatLoading && msg.role === 'assistant';
+          return (
+            <div key={idx} className={`rounded-lg px-3 py-2 text-xs ${
+              msg.role === 'user' ? userBg : assistantBg
+            }`}>
+              <div className={`text-[10px] mb-1 flex items-center gap-1 ${textMuted}`}>
+                <span>{msg.role === 'user' ? 'You' : 'AI'}</span>
+                {isStreamingThis && <Loader2 size={10} className="animate-spin" />}
               </div>
-            ) : (
-              <div className="whitespace-pre-wrap">{msg.content}</div>
-            )}
-          </div>
-        ))}
-
-        {chatLoading && (
-          <div className={`flex items-center gap-2 px-3 py-2 text-xs ${textMuted}`}>
-            <Loader2 size={12} className="animate-spin" />
-            <span>Thinking...</span>
-          </div>
-        )}
+              {msg.role === 'assistant' ? (
+                <div className="prose prose-sm prose-invert max-w-none [&_pre]:bg-zinc-900 [&_pre]:rounded-b [&_pre]:p-2 [&_pre]:text-[11px] [&_code]:text-[11px] [&_p]:my-1">
+                  {msg.content ? (
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        code: (props) => <CodeBlock theme={theme as 'dark' | 'light'} {...props} />,
+                      }}
+                    >
+                      {msg.content}
+                    </ReactMarkdown>
+                  ) : (
+                    <span className={textMuted}>...</span>
+                  )}
+                </div>
+              ) : (
+                <div className="whitespace-pre-wrap">{msg.content}</div>
+              )}
+            </div>
+          );
+        })}
 
         {error && (
           <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-red-900/20 text-red-400 text-xs">
@@ -208,7 +321,6 @@ export function AiChatPanel() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
       <div className={`flex items-end gap-2 px-3 py-2 border-t ${border}`}>
         <textarea
           ref={textareaRef}
@@ -221,18 +333,28 @@ export function AiChatPanel() {
           style={{ minHeight: '32px' }}
           disabled={chatLoading}
         />
-        <button
-          onClick={handleSend}
-          disabled={!input.trim() || chatLoading}
-          className={`p-1.5 rounded transition-colors shrink-0 ${
-            input.trim() && !chatLoading
-              ? 'bg-blue-600 text-white hover:bg-blue-500'
-              : `${inputBg} ${textMuted} cursor-not-allowed`
-          }`}
-          title="Send (Enter)"
-        >
-          <Send size={14} />
-        </button>
+        {chatLoading ? (
+          <button
+            onClick={handleStop}
+            className="p-1.5 rounded bg-red-600 text-white hover:bg-red-500 shrink-0"
+            title="Stop streaming"
+          >
+            <Square size={14} />
+          </button>
+        ) : (
+          <button
+            onClick={handleSend}
+            disabled={!input.trim()}
+            className={`p-1.5 rounded transition-colors shrink-0 ${
+              input.trim()
+                ? 'bg-blue-600 text-white hover:bg-blue-500'
+                : `${inputBg} ${textMuted} cursor-not-allowed`
+            }`}
+            title="Send (Enter)"
+          >
+            <Send size={14} />
+          </button>
+        )}
       </div>
     </div>
   );

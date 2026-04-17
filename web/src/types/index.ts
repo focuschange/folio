@@ -43,7 +43,34 @@ export interface GitLogEntry {
   message: string;
 }
 
-export type RightTab = 'outline' | 'files' | 'git' | 'info' | 'todos' | 'toc' | 'links' | 'recent' | 'bookmarks' | 'images' | 'chat';
+export type RightTab = 'outline' | 'files' | 'git' | 'info' | 'todos' | 'toc' | 'links' | 'recent' | 'bookmarks' | 'images' | 'chat' | 'snippets' | 'tasks' | 'docs' | 'ssh' | 'tunnel' | 'jekyll';
+
+export type SplitDirection = 'none' | 'horizontal' | 'vertical';
+
+export interface SshConnection {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  username: string;
+  authType: 'password' | 'key';
+  keyPath?: string;
+}
+
+export interface SshTunnel {
+  id: string;
+  connectionId: string;
+  localPort: number;
+  remoteHost: string;
+  remotePort: number;
+  active: boolean;
+}
+
+export interface TaskDef {
+  name: string;
+  command: string;
+  source: string;  // 'package.json' | 'Makefile' | 'build.gradle.kts'
+}
 
 export interface ChatMessage {
   role: 'user' | 'assistant';

@@ -67,6 +67,24 @@ html, body, #root {
   background: rgba(59, 130, 246, 0.08);
 }
 
+/* AI Inline Edit (⌘K) decorations */
+.folio-ai-original-inline {
+  text-decoration: line-through;
+  text-decoration-color: rgba(239, 68, 68, 0.7);
+  text-decoration-thickness: 1px;
+  opacity: 0.7;
+}
+.folio-ai-original-line {
+  background: rgba(239, 68, 68, 0.10);
+}
+.folio-ai-inline-host {
+  pointer-events: auto;
+  z-index: 30;
+}
+.folio-ai-inline-host textarea {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+
 /* Markdown preview styles */
 .markdown-body {
   line-height: 1.7;

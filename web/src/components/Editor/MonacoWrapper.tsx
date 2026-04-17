@@ -1,9 +1,15 @@
 import { useRef, useCallback, useEffect } from 'react';
-import Editor, { type OnMount } from '@monaco-editor/react';
+import Editor, { type OnMount, loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
+
+// CRITICAL: Tell @monaco-editor/react to use the bundled Monaco instance instead of
+// lazy-loading from CDN. Otherwise custom language registrations (like Groovy) won't apply
+// to the actual editor, since they'd be on a different monaco instance.
+loader.config({ monaco });
 import { useAppStore } from '../../store/useAppStore';
 import { setMonacoEditorRef } from '../Layout/Toolbar';
 import { formatCode, formatSelection, isFormatSupported } from '../../utils/formatter';
+import { startInlineEdit } from './inlineEdit';
 import type { EditorTab } from '../../types';
 
 interface MonacoWrapperProps {
@@ -13,6 +19,43 @@ interface MonacoWrapperProps {
 // Stable reference for the "no bookmarks" case — avoids returning a fresh [] on every selector call,
 // which would otherwise invalidate the `bookmarks` useEffect dep and re-run the decoration sync repeatedly.
 const EMPTY_LINES: number[] = [];
+
+// Register Groovy language statically — Monaco doesn't ship a Groovy mode,
+// so we reuse Java's tokenizer (Groovy is syntactically compatible for highlighting).
+// For `.sh` / `.bash` / `.zshrc` etc, we map directly to 'shell' in languages.ts
+// (Monaco's built-in 'shell' language handles them natively).
+// @ts-expect-error — Monaco sub-path imports have no type declarations
+import { language as javaLanguage, conf as javaConf } from 'monaco-editor/esm/vs/basic-languages/java/java.js';
+
+let languagesRegistered = false;
+function registerCustomLanguages() {
+  if (languagesRegistered) return;
+  languagesRegistered = true;
+
+  // Force load Monaco's built-in shell contribution so it's ready when needed
+  // (Monaco registers this lazily; we want it immediately available for .sh/.bash files)
+  import('monaco-editor/esm/vs/basic-languages/shell/shell.contribution.js').catch(() => {});
+  import('monaco-editor/esm/vs/basic-languages/java/java.contribution.js').catch(() => {});
+
+  const existingLangs = new Set(monaco.languages.getLanguages().map(l => l.id));
+
+  // Groovy: register + reuse Java tokenizer
+  if (!existingLangs.has('groovy')) {
+    monaco.languages.register({
+      id: 'groovy',
+      extensions: ['.groovy', '.gvy', '.gy', '.gradle'],
+      aliases: ['Groovy', 'groovy'],
+      filenames: ['build.gradle', 'settings.gradle', 'Jenkinsfile'],
+    });
+    if (javaLanguage) {
+      monaco.languages.setMonarchTokensProvider('groovy', javaLanguage as monaco.languages.IMonarchLanguage);
+    }
+    if (javaConf) {
+      monaco.languages.setLanguageConfiguration('groovy', javaConf as monaco.languages.LanguageConfiguration);
+    }
+  }
+}
+registerCustomLanguages();
 
 export function MonacoWrapper({ tab }: MonacoWrapperProps) {
   const settings = useAppStore(s => s.settings);
@@ -115,6 +158,24 @@ export function MonacoWrapper({ tab }: MonacoWrapperProps) {
         if (!activeTab) return;
         useAppStore.getState().clearBookmarksForFile(activeTab.path);
         void ed; // no-op, decorations updated by useEffect
+      },
+    });
+
+    // AI Inline Edit (⌘K) — overrides Monaco's chord prefix default which is rarely used
+    editor.addAction({
+      id: 'folio.ai-inline-edit',
+      label: 'AI: Inline Edit…',
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK],
+      contextMenuGroupId: '1_modification',
+      contextMenuOrder: 1.4,
+      run: (ed) => {
+        const model = ed.getModel();
+        if (!model) return;
+        const state = useAppStore.getState();
+        const activeTab = state.tabs.find(t => t.id === state.activeTabId);
+        const language = activeTab?.language ?? model.getLanguageId() ?? 'plaintext';
+        const theme = (state.settings.theme === 'light' ? 'light' : 'dark') as 'dark' | 'light';
+        startInlineEdit({ editor: ed, model, theme, language });
       },
     });
 
