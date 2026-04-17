@@ -1,4 +1,5 @@
 import { useAppStore } from '../../store/useAppStore';
+import { MenuBar } from './MenuBar';
 import { Toolbar } from './Toolbar';
 import { StatusBar } from './StatusBar';
 import { FileTree } from '../FileTree/FileTree';
@@ -131,6 +132,7 @@ export function MainLayout() {
 
   return (
     <div className={`h-screen flex flex-col ${bgColor} ${textColor} overflow-hidden`}>
+      {!zenMode && <MenuBar />}
       {!zenMode && <Toolbar />}
 
       {/* Exit Zen Mode button in title bar (right side) */}
