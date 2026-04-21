@@ -21,6 +21,10 @@ interface SessionParams {
   model: EditorModel;
   theme: 'dark' | 'light';
   language: string;
+  /** Pre-fill the prompt textarea (Quick Actions use this). */
+  presetInstruction?: string;
+  /** If true and a preset is provided, submit immediately without user confirmation. */
+  autoSubmit?: boolean;
 }
 
 let activeSession: InlineEditSession | null = null;
@@ -38,6 +42,8 @@ class InlineEditSession {
   private editor: Editor;
   private theme: 'dark' | 'light';
   private language: string;
+  private presetInstruction: string;
+  private autoSubmit: boolean;
   private originalRange: monaco.Range;
   private originalText: string;
   private promptZoneId: string | null = null;
@@ -50,10 +56,12 @@ class InlineEditSession {
   private disposed = false;
   private revealedOnDone = false;
 
-  constructor({ editor, model, theme, language }: SessionParams) {
+  constructor({ editor, model, theme, language, presetInstruction, autoSubmit }: SessionParams) {
     this.editor = editor;
     this.theme = theme;
     this.language = language;
+    this.presetInstruction = presetInstruction ?? '';
+    this.autoSubmit = !!autoSubmit;
 
     const sel = editor.getSelection();
     if (sel && !sel.isEmpty()) {
@@ -71,6 +79,10 @@ class InlineEditSession {
 
   start() {
     this.mountPromptZone();
+    // Quick Actions path: skip the prompt UI and submit immediately
+    if (this.autoSubmit && this.presetInstruction) {
+      this.handleSubmit(this.presetInstruction);
+    }
   }
 
   private mountPromptZone() {
@@ -90,6 +102,7 @@ class InlineEditSession {
     this.promptRoot.render(
       <InlineEditPrompt
         theme={this.theme}
+        initialValue={this.presetInstruction}
         onSubmit={(instruction) => this.handleSubmit(instruction)}
         onCancel={() => this.cancel()}
       />
@@ -266,13 +279,14 @@ class InlineEditSession {
 // -------- UI components --------
 
 function InlineEditPrompt({
-  theme, onSubmit, onCancel,
+  theme, onSubmit, onCancel, initialValue = '',
 }: {
   theme: 'dark' | 'light';
   onSubmit: (instruction: string) => void;
   onCancel: () => void;
+  initialValue?: string;
 }) {
-  const [value, setValue] = useState('');
+  const [value, setValue] = useState(initialValue);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
   // Monaco reclaims focus after an action returns, so we need to defer

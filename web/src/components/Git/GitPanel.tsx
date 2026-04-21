@@ -1,21 +1,39 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { useGit } from '../../hooks/useGit';
 import {
   GitBranch, GitCommit, Upload, Download,
-  Plus, FileText, Trash2, FilePlus, RefreshCw,
+  Plus, FileText, Trash2, FilePlus, RefreshCw, Sparkles, Square,
 } from 'lucide-react';
+import { streamAiChat, type StreamController } from '../../utils/aiStream';
+
+const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  const { invoke } = await import('@tauri-apps/api/core');
+  return invoke<T>(cmd, args);
+}
+
+const COMMIT_MESSAGE_SYSTEM_PROMPT =
+  "You are a git commit message generator. Given a staged diff, produce ONE Conventional Commits message. " +
+  "Format: `type(scope): subject` where type ∈ {feat, fix, docs, style, refactor, test, chore, perf}. " +
+  "Subject: imperative mood, lowercase, no period, under 72 chars. " +
+  "Optionally add a blank line and a short body if the change needs context. " +
+  "Output ONLY the commit message — no explanation, no markdown fences, no quotes.";
 
 export function GitPanel() {
   const theme = useAppStore(s => s.settings.theme);
   const gitBranch = useAppStore(s => s.gitBranch);
   const gitStatus = useAppStore(s => s.gitStatus);
   const gitLog = useAppStore(s => s.gitLog);
+  const projectRoot = useAppStore(s => s.projectRoot);
   const { fetchBranch, fetchStatus, fetchLog, stageAll, commit, push, pull } = useGit();
 
   const [commitMessage, setCommitMessage] = useState('');
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const genStreamRef = useRef<StreamController | null>(null);
 
   const showFeedback = (type: 'success' | 'error', msg: string) => {
     setFeedback({ type, msg });
@@ -73,6 +91,60 @@ export function GitPanel() {
     }
   };
 
+  const handleGenerateCommitMessage = async () => {
+    if (generating) {
+      // Clicking while generating = stop
+      genStreamRef.current?.cancel();
+      genStreamRef.current = null;
+      setGenerating(false);
+      return;
+    }
+    if (!isTauri || !projectRoot) {
+      showFeedback('error', 'Project root not set');
+      return;
+    }
+    try {
+      const diff = await tauriInvoke<string>('git_diff_staged_raw', { path: projectRoot });
+      if (!diff.trim()) {
+        showFeedback('error', 'No staged changes to summarize. Run Stage All first.');
+        return;
+      }
+      // Truncate very large diffs to keep token cost sane — first ~20000 chars
+      const truncated = diff.length > 20000 ? diff.slice(0, 20000) + '\n\n[…truncated…]' : diff;
+      setCommitMessage('');
+      setGenerating(true);
+
+      const ctrl = await streamAiChat(
+        {
+          messages: [{ role: 'user', content: `Generate a Conventional Commits message for this diff:\n\n${truncated}` }],
+          systemOverride: COMMIT_MESSAGE_SYSTEM_PROMPT,
+        },
+        {
+          onChunk: (delta) => setCommitMessage(prev => prev + delta),
+          onDone: (full) => {
+            setCommitMessage(full.trim());
+            setGenerating(false);
+            genStreamRef.current = null;
+          },
+          onError: (err) => {
+            showFeedback('error', err);
+            setGenerating(false);
+            genStreamRef.current = null;
+          },
+        },
+      );
+      genStreamRef.current = ctrl;
+    } catch (e) {
+      showFeedback('error', e instanceof Error ? e.message : String(e));
+      setGenerating(false);
+    }
+  };
+
+  useEffect(() => {
+    // Cancel any in-flight AI generation on unmount
+    return () => genStreamRef.current?.cancel();
+  }, []);
+
   const bg = theme === 'dark' ? 'bg-zinc-900' : 'bg-white';
   const border = theme === 'dark' ? 'border-zinc-700' : 'border-zinc-200';
   const inputBg = theme === 'dark' ? 'bg-zinc-800 text-zinc-200' : 'bg-zinc-100 text-zinc-800';
@@ -128,16 +200,33 @@ export function GitPanel() {
 
       {/* Commit */}
       <div className={`px-3 py-2 border-b ${border}`}>
+        <div className="flex items-center justify-between mb-1">
+          <span className={`text-[10px] uppercase tracking-wider ${textMuted}`}>Commit Message</span>
+          <button
+            onClick={handleGenerateCommitMessage}
+            disabled={!isTauri || !projectRoot}
+            className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] ${
+              generating
+                ? 'bg-red-600 text-white hover:bg-red-500'
+                : 'bg-blue-600/80 text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed'
+            }`}
+            title={generating ? 'Stop generating' : 'Generate from staged diff'}
+          >
+            {generating ? <Square size={10} /> : <Sparkles size={10} />}
+            <span>{generating ? 'Stop' : 'Generate'}</span>
+          </button>
+        </div>
         <textarea
           value={commitMessage}
           onChange={e => setCommitMessage(e.target.value)}
-          placeholder="Commit message..."
+          placeholder={generating ? 'Generating…' : 'Commit message...'}
           rows={3}
-          className={`w-full px-2 py-1.5 rounded-md text-xs resize-none ${inputBg} outline-none`}
+          disabled={generating}
+          className={`w-full px-2 py-1.5 rounded-md text-xs resize-none ${inputBg} outline-none disabled:opacity-70`}
         />
         <button
           onClick={handleCommit}
-          disabled={!commitMessage.trim()}
+          disabled={!commitMessage.trim() || generating}
           className="w-full mt-1 px-2 py-1.5 text-xs rounded-md bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           Commit

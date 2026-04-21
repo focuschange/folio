@@ -157,6 +157,7 @@ pub fn run() {
             // Git commands
             git_commands::git_status,
             git_commands::git_diff,
+            git_commands::git_diff_staged_raw,
             git_commands::git_add,
             git_commands::git_commit,
             git_commands::git_push,
