@@ -10,6 +10,9 @@ import { useAppStore } from '../../store/useAppStore';
 import { setMonacoEditorRef } from '../Layout/Toolbar';
 import { formatCode, formatSelection, isFormatSupported } from '../../utils/formatter';
 import { startInlineEdit } from './inlineEdit';
+import { openQuickActionMenu } from './QuickActionMenu';
+import { QUICK_ACTIONS } from './quickActions';
+import { registerGhostText } from './ghostText';
 import type { EditorTab } from '../../types';
 
 interface MonacoWrapperProps {
@@ -56,6 +59,11 @@ function registerCustomLanguages() {
   }
 }
 registerCustomLanguages();
+
+// Ghost Text inline completions provider (#94). Safe to call repeatedly — the
+// helper guards against double-registration. Done at module level so any
+// editor mount after registration inherits the provider.
+registerGhostText();
 
 export function MonacoWrapper({ tab }: MonacoWrapperProps) {
   const settings = useAppStore(s => s.settings);
@@ -166,8 +174,8 @@ export function MonacoWrapper({ tab }: MonacoWrapperProps) {
       id: 'folio.ai-inline-edit',
       label: 'AI: Inline Edit…',
       keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK],
-      contextMenuGroupId: '1_modification',
-      contextMenuOrder: 1.4,
+      contextMenuGroupId: '9_ai',
+      contextMenuOrder: 1,
       run: (ed) => {
         const model = ed.getModel();
         if (!model) return;
@@ -177,6 +185,48 @@ export function MonacoWrapper({ tab }: MonacoWrapperProps) {
         const theme = (state.settings.theme === 'light' ? 'light' : 'dark') as 'dark' | 'light';
         startInlineEdit({ editor: ed, model, theme, language });
       },
+    });
+
+    // AI Quick Actions (⌘.) — floating menu with preset instructions
+    editor.addAction({
+      id: 'folio.ai-quick-actions',
+      label: 'AI: Quick Actions…',
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Period],
+      contextMenuGroupId: '9_ai',
+      contextMenuOrder: 2,
+      run: (ed) => {
+        const model = ed.getModel();
+        if (!model) return;
+        const state = useAppStore.getState();
+        const activeTab = state.tabs.find(t => t.id === state.activeTabId);
+        const language = activeTab?.language ?? model.getLanguageId() ?? 'plaintext';
+        const theme = (state.settings.theme === 'light' ? 'light' : 'dark') as 'dark' | 'light';
+        openQuickActionMenu({ editor: ed, theme, language });
+      },
+    });
+
+    // Individual Quick Actions — surface each in the right-click menu so users
+    // who prefer a mouse flow don't need the ⌘. menu.
+    QUICK_ACTIONS.forEach((action, idx) => {
+      editor.addAction({
+        id: `folio.ai-quick-${action.id}`,
+        label: `AI: ${action.label} — ${action.hint}`,
+        contextMenuGroupId: '9_ai',
+        contextMenuOrder: 10 + idx,
+        run: (ed) => {
+          const model = ed.getModel();
+          if (!model) return;
+          const state = useAppStore.getState();
+          const activeTab = state.tabs.find(t => t.id === state.activeTabId);
+          const language = activeTab?.language ?? model.getLanguageId() ?? 'plaintext';
+          const theme = (state.settings.theme === 'light' ? 'light' : 'dark') as 'dark' | 'light';
+          startInlineEdit({
+            editor: ed, model, theme, language,
+            presetInstruction: action.preset,
+            autoSubmit: true,
+          });
+        },
+      });
     });
 
     // Create decoration collection
@@ -253,6 +303,10 @@ export function MonacoWrapper({ tab }: MonacoWrapperProps) {
             showSnippets: true,
           },
           quickSuggestions: true,
+          // Ghost Text (#94): Monaco's inline suggestion renderer. Enabling
+          // this is what surfaces the ghost text from our registered provider.
+          // Tab accepts, Esc dismisses. Mode 'prefix' keeps behavior predictable.
+          inlineSuggest: { enabled: true, mode: 'prefix' },
           folding: true,
           foldingStrategy: 'indentation',
           links: true,

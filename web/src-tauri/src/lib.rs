@@ -157,6 +157,8 @@ pub fn run() {
             // Git commands
             git_commands::git_status,
             git_commands::git_diff,
+            git_commands::git_diff_staged_raw,
+            git_commands::git_diff_unstaged_raw,
             git_commands::git_add,
             git_commands::git_commit,
             git_commands::git_push,
@@ -175,6 +177,7 @@ pub fn run() {
             ai_commands::ai_chat,
             ai_commands::ai_chat_stream,
             ai_commands::ai_edit,
+            ai_commands::ai_ghost_text,
             ai_commands::load_ai_config,
             ai_commands::save_ai_config,
             // SSH commands
