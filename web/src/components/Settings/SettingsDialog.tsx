@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { X, Monitor, Type, Layout, Bot } from 'lucide-react';
 import type { AppSettings, AiConfig } from '../../types';
+import { invalidateGhostTextConfig } from '../Editor/ghostText';
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
@@ -28,7 +29,10 @@ export function SettingsDialog() {
   const tabInactive = `${textMuted} ${theme === 'dark' ? 'hover:bg-zinc-700/50' : 'hover:bg-zinc-100'}`;
 
   // AI config state
-  const [aiConfig, setAiConfig] = useState<AiConfig>({ provider: 'claude', apiKey: '', model: 'claude-sonnet-4-20250514' });
+  const [aiConfig, setAiConfig] = useState<AiConfig>({
+    provider: 'claude', apiKey: '', model: 'claude-sonnet-4-20250514',
+    ghostEnabled: false, ghostModel: undefined,
+  });
   const [aiSaved, setAiSaved] = useState(false);
 
   useEffect(() => {
@@ -36,16 +40,31 @@ export function SettingsDialog() {
     tauriInvoke<string>('load_ai_config')
       .then(json => {
         const cfg = JSON.parse(json);
-        setAiConfig({ provider: cfg.provider || 'claude', apiKey: cfg.api_key || '', model: cfg.model || 'claude-sonnet-4-20250514' });
+        setAiConfig({
+          provider: cfg.provider || 'claude',
+          apiKey: cfg.api_key || '',
+          model: cfg.model || 'claude-sonnet-4-20250514',
+          ghostEnabled: !!cfg.ghost_enabled,
+          ghostModel: cfg.ghost_model || undefined,
+        });
       })
       .catch(() => {});
   }, []);
 
   const saveAiConfig = async () => {
     if (!isTauri) return;
-    const json = JSON.stringify({ provider: aiConfig.provider, api_key: aiConfig.apiKey, model: aiConfig.model });
+    const json = JSON.stringify({
+      provider: aiConfig.provider,
+      api_key: aiConfig.apiKey,
+      model: aiConfig.model,
+      ghost_enabled: !!aiConfig.ghostEnabled,
+      ghost_model: aiConfig.ghostModel || null,
+    });
     try {
       await tauriInvoke('save_ai_config', { configJson: json });
+      // Flush the in-memory config cache so the Ghost Text provider
+      // picks up the new toggle/model on the next keystroke.
+      invalidateGhostTextConfig();
       setAiSaved(true);
       setTimeout(() => setAiSaved(false), 2000);
     } catch (e) { console.error('Failed to save AI config:', e); }
@@ -190,7 +209,8 @@ export function SettingsDialog() {
                   onChange={e => {
                     const p = e.target.value;
                     const defaultModel = p === 'openai' ? 'gpt-4o' : 'claude-sonnet-4-20250514';
-                    setAiConfig(c => ({ ...c, provider: p, model: defaultModel, apiKey: '' }));
+                    // Reset ghost_model too — model ids differ between providers.
+                    setAiConfig(c => ({ ...c, provider: p, model: defaultModel, apiKey: '', ghostModel: undefined }));
                   }}
                   className={selectClass}
                 >
@@ -229,6 +249,48 @@ export function SettingsDialog() {
                   )}
                 </select>
               </SettingRow>
+
+              {/* Ghost Text (#94) — Copilot-style inline completions */}
+              <div className={`mt-3 pt-3 border-t ${border}`}>
+                <div className="text-[11px] font-semibold mb-2 flex items-center gap-1">
+                  <span>👻 Ghost Text (인라인 자동완성)</span>
+                </div>
+                <SettingToggle
+                  label="Ghost Text 사용"
+                  checked={!!aiConfig.ghostEnabled}
+                  onChange={v => setAiConfig(c => ({ ...c, ghostEnabled: v }))}
+                  theme={theme}
+                />
+                {aiConfig.ghostEnabled && (
+                  <div className="mt-2">
+                    <SettingRow label="빠른 모델">
+                      <select
+                        value={aiConfig.ghostModel ?? ''}
+                        onChange={e => setAiConfig(c => ({ ...c, ghostModel: e.target.value || undefined }))}
+                        className={selectClass}
+                      >
+                        <option value="">메인 모델 사용</option>
+                        {aiConfig.provider === 'claude' ? (
+                          <>
+                            <option value="claude-haiku-4-20250514">Claude Haiku 4 (권장)</option>
+                            <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
+                          </>
+                        ) : (
+                          <>
+                            <option value="gpt-4o-mini">GPT-4o Mini (권장)</option>
+                            <option value="gpt-4o">GPT-4o</option>
+                          </>
+                        )}
+                      </select>
+                    </SettingRow>
+                  </div>
+                )}
+                <div className={`text-[10px] ${textMuted} mt-2 leading-relaxed`}>
+                  Tab으로 수락, Esc로 무시. 타이핑마다 API가 호출되므로 <strong>비용 주의</strong>.
+                  빠른 모델(Haiku / gpt-4o-mini) 권장.
+                </div>
+              </div>
+
               <div className="flex items-center justify-end gap-2 pt-2">
                 {aiSaved && <span className="text-xs text-green-400">Saved!</span>}
                 <button

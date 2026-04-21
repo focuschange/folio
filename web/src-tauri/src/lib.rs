@@ -177,6 +177,7 @@ pub fn run() {
             ai_commands::ai_chat,
             ai_commands::ai_chat_stream,
             ai_commands::ai_edit,
+            ai_commands::ai_ghost_text,
             ai_commands::load_ai_config,
             ai_commands::save_ai_config,
             // SSH commands

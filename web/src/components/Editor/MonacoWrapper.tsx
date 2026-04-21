@@ -12,6 +12,7 @@ import { formatCode, formatSelection, isFormatSupported } from '../../utils/form
 import { startInlineEdit } from './inlineEdit';
 import { openQuickActionMenu } from './QuickActionMenu';
 import { QUICK_ACTIONS } from './quickActions';
+import { registerGhostText } from './ghostText';
 import type { EditorTab } from '../../types';
 
 interface MonacoWrapperProps {
@@ -58,6 +59,11 @@ function registerCustomLanguages() {
   }
 }
 registerCustomLanguages();
+
+// Ghost Text inline completions provider (#94). Safe to call repeatedly — the
+// helper guards against double-registration. Done at module level so any
+// editor mount after registration inherits the provider.
+registerGhostText();
 
 export function MonacoWrapper({ tab }: MonacoWrapperProps) {
   const settings = useAppStore(s => s.settings);
@@ -297,6 +303,10 @@ export function MonacoWrapper({ tab }: MonacoWrapperProps) {
             showSnippets: true,
           },
           quickSuggestions: true,
+          // Ghost Text (#94): Monaco's inline suggestion renderer. Enabling
+          // this is what surfaces the ghost text from our registered provider.
+          // Tab accepts, Esc dismisses. Mode 'prefix' keeps behavior predictable.
+          inlineSuggest: { enabled: true, mode: 'prefix' },
           folding: true,
           foldingStrategy: 'indentation',
           links: true,
