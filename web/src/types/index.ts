@@ -82,6 +82,10 @@ export interface AiConfig {
   provider: string;
   apiKey: string;
   model: string;
+  /** Ghost Text #94 — Copilot-style inline completions (opt-in per cost). */
+  ghostEnabled?: boolean;
+  /** Fast model for ghost text (e.g. claude-haiku-4, gpt-4o-mini). Fallback = `model`. */
+  ghostModel?: string;
 }
 
 export interface TodoItem {

@@ -14,6 +14,12 @@ pub struct AiConfig {
     pub provider: String,       // "claude"
     pub api_key: String,
     pub model: String,          // "claude-sonnet-4-20250514"
+    // Ghost Text (#94) — optional fast model and enable toggle.
+    // `#[serde(default)]` keeps backward-compat with older config files.
+    #[serde(default)]
+    pub ghost_enabled: bool,
+    #[serde(default)]
+    pub ghost_model: Option<String>,
 }
 
 impl Default for AiConfig {
@@ -22,6 +28,8 @@ impl Default for AiConfig {
             provider: "claude".into(),
             api_key: String::new(),
             model: "claude-sonnet-4-20250514".into(),
+            ghost_enabled: false,
+            ghost_model: None,
         }
     }
 }
@@ -451,6 +459,119 @@ async fn stream_claude(
     }
 
     Ok(full_text)
+}
+
+// ---------------------------------------------------------------------------
+// Ghost Text (#94) — single-shot non-streaming inline completion.
+// Called by Monaco's InlineCompletionsProvider on each keystroke (debounced).
+// Latency-sensitive → non-stream, small max_tokens, prefers ghost_model.
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn ai_ghost_text(
+    prefix: String,
+    suffix: String,
+    language: Option<String>,
+) -> Result<String, String> {
+    let config = load_config();
+    if config.api_key.is_empty() {
+        return Err("API key not configured".into());
+    }
+    if !config.ghost_enabled {
+        // Frontend should check this too, but enforce server-side to avoid
+        // burning tokens if the provider gets registered somehow without the
+        // gate being respected.
+        return Err("Ghost Text disabled".into());
+    }
+
+    let lang = language.unwrap_or_else(|| "plaintext".into());
+    // Use ghost_model when set, otherwise fall back to the main chat model.
+    let model = config.ghost_model.clone().unwrap_or_else(|| config.model.clone());
+
+    let system = format!(
+        "You are an inline code completion assistant. Given code before [CURSOR] and code after, \
+         output ONLY the text that should be inserted AT the cursor. \
+         Rules:\n\
+         - No explanations, no commentary, no prose.\n\
+         - No markdown fences (no ```).\n\
+         - Do NOT repeat text that already appears before or after the cursor.\n\
+         - Stop at a natural boundary (end of expression, end of line, or a small logical block).\n\
+         - Prefer short, high-confidence completions. If unsure, return an empty string.\n\
+         - Language: {}",
+        lang
+    );
+    let user = format!("{}[CURSOR]{}", prefix, suffix);
+
+    match config.provider.as_str() {
+        "openai" => ghost_openai(&config, &model, &system, &user).await,
+        _ => ghost_claude(&config, &model, &system, &user).await,
+    }
+}
+
+async fn ghost_claude(config: &AiConfig, model: &str, system: &str, user: &str) -> Result<String, String> {
+    let body = AnthropicRequest {
+        model: model.to_string(),
+        max_tokens: 128,
+        system: Some(system.to_string()),
+        messages: vec![AnthropicMessage {
+            role: "user".into(),
+            content: user.to_string(),
+        }],
+    };
+    let client = reqwest::Client::new();
+    let response = client
+        .post("https://api.anthropic.com/v1/messages")
+        .header("x-api-key", &config.api_key)
+        .header("anthropic-version", "2023-06-01")
+        .header("content-type", "application/json")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("Network error: {}", e))?;
+
+    let status = response.status();
+    let body_text = response.text().await.map_err(|e| format!("Response read error: {}", e))?;
+    if !status.is_success() {
+        if let Ok(err) = serde_json::from_str::<AnthropicError>(&body_text) {
+            return Err(format!("API error ({}): {}", status.as_u16(), err.error.message));
+        }
+        return Err(format!("API error ({}): {}", status.as_u16(), body_text));
+    }
+    let parsed: AnthropicResponse = serde_json::from_str(&body_text)
+        .map_err(|e| format!("Response parse error: {}", e))?;
+    Ok(parsed.content.first().map(|c| c.text.clone()).unwrap_or_default())
+}
+
+async fn ghost_openai(config: &AiConfig, model: &str, system: &str, user: &str) -> Result<String, String> {
+    let body = OpenAiRequest {
+        model: model.to_string(),
+        max_tokens: 128,
+        messages: vec![
+            OpenAiMessage { role: "system".into(), content: system.to_string() },
+            OpenAiMessage { role: "user".into(), content: user.to_string() },
+        ],
+    };
+    let client = reqwest::Client::new();
+    let response = client
+        .post("https://api.openai.com/v1/chat/completions")
+        .header("Authorization", format!("Bearer {}", config.api_key))
+        .header("content-type", "application/json")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("Network error: {}", e))?;
+
+    let status = response.status();
+    let body_text = response.text().await.map_err(|e| format!("Response read error: {}", e))?;
+    if !status.is_success() {
+        if let Ok(err) = serde_json::from_str::<OpenAiError>(&body_text) {
+            return Err(format!("API error ({}): {}", status.as_u16(), err.error.message));
+        }
+        return Err(format!("API error ({}): {}", status.as_u16(), body_text));
+    }
+    let parsed: OpenAiResponse = serde_json::from_str(&body_text)
+        .map_err(|e| format!("Response parse error: {}", e))?;
+    Ok(parsed.choices.first().map(|c| c.message.content.clone()).unwrap_or_default())
 }
 
 async fn stream_openai(
