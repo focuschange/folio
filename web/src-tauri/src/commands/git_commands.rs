@@ -100,6 +100,13 @@ pub fn git_diff_staged_raw(path: String) -> Result<String, String> {
     run_git(&args, &path)
 }
 
+/// Return the unstaged (working tree vs index) diff as raw text.
+#[tauri::command]
+pub fn git_diff_unstaged_raw(path: String) -> Result<String, String> {
+    let args = vec!["diff"];
+    run_git(&args, &path)
+}
+
 fn parse_diff_output(output: &str) -> Vec<DiffHunk> {
     let mut hunks = Vec::new();
     let mut current_file = String::new();
