@@ -70,8 +70,15 @@ pub fn git_status(path: String) -> Result<Vec<GitStatusEntry>, String> {
 }
 
 #[tauri::command]
-pub fn git_diff(path: String, file_path: Option<String>) -> Result<Vec<DiffHunk>, String> {
+pub fn git_diff(
+    path: String,
+    file_path: Option<String>,
+    staged: Option<bool>,
+) -> Result<Vec<DiffHunk>, String> {
     let mut args = vec!["diff", "--unified=0"];
+    if staged.unwrap_or(false) {
+        args.push("--staged");
+    }
     let fp;
     if let Some(ref f) = file_path {
         args.push("--");
@@ -82,6 +89,15 @@ pub fn git_diff(path: String, file_path: Option<String>) -> Result<Vec<DiffHunk>
     let output = run_git(&args, &path)?;
     let hunks = parse_diff_output(&output);
     Ok(hunks)
+}
+
+/// Return the staged diff as a single raw string (for feeding to the AI commit
+/// message generator). Uses default unified context so the model gets enough
+/// surrounding code to summarize meaningfully.
+#[tauri::command]
+pub fn git_diff_staged_raw(path: String) -> Result<String, String> {
+    let args = vec!["diff", "--staged"];
+    run_git(&args, &path)
 }
 
 fn parse_diff_output(output: &str) -> Vec<DiffHunk> {

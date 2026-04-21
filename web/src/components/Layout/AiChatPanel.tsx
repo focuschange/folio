@@ -7,6 +7,12 @@ import remarkGfm from 'remark-gfm';
 import { streamAiChat, type StreamController } from '../../utils/aiStream';
 import { getMonacoEditorRef } from './Toolbar';
 import { insertAtCursor } from '../../utils/markdownActions';
+import {
+  matchTemplatePrefix,
+  parseSlashCommand,
+  expandUserMessage,
+  type PromptTemplate,
+} from '../../utils/promptTemplates';
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
@@ -132,6 +138,21 @@ export function AiChatPanel() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const streamCtrlRef = useRef<StreamController | null>(null);
 
+  // Slash-command dropdown state
+  const [slashIndex, setSlashIndex] = useState(0);
+  const slashMatches: PromptTemplate[] = (() => {
+    // Only show dropdown while user is still typing the command name (no space yet)
+    const m = /^\/([a-z0-9_-]*)$/i.exec(input);
+    if (!m) return [];
+    return matchTemplatePrefix(m[1]);
+  })();
+  const showSlashDropdown = slashMatches.length > 0;
+
+  useEffect(() => {
+    // Reset selection when the match list shrinks
+    if (slashIndex >= slashMatches.length) setSlashIndex(0);
+  }, [slashMatches.length, slashIndex]);
+
   const textMuted = theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400';
   const inputBg = theme === 'dark' ? 'bg-zinc-800' : 'bg-zinc-100';
   const border = theme === 'dark' ? 'border-zinc-700' : 'border-zinc-200';
@@ -164,19 +185,26 @@ export function AiChatPanel() {
   }, []);
 
   const handleSend = useCallback(async () => {
-    const text = input.trim();
-    if (!text || chatLoading) return;
+    const raw = input.trim();
+    if (!raw || chatLoading) return;
 
     setError(null);
     setInput('');
 
-    const userMsg: ChatMessage = { role: 'user', content: text, timestamp: Date.now() };
+    // Detect slash command — strip it from the displayed user message (store the
+    // expanded form) and override the system prompt accordingly.
+    const slash = parseSlashCommand(raw);
+    const displayContent = slash ? expandUserMessage(slash.template, slash.rest || '(current file context)') : raw;
+    const systemOverride = slash ? slash.template.systemPrompt : undefined;
+    const useContext = slash ? (slash.template.useFileContext ?? true) : includeContext;
+
+    const userMsg: ChatMessage = { role: 'user', content: displayContent, timestamp: Date.now() };
     addChatMessage(userMsg);
 
     const allMessages = [...chatMessages, userMsg];
     const apiMessages = allMessages.map(m => ({ role: m.role, content: m.content }));
 
-    const context = includeContext && activeTab
+    const context = useContext && activeTab
       ? `File: ${activeTab.path}\nLanguage: ${activeTab.language}\n\n${activeTab.content.slice(0, 8000)}`
       : undefined;
 
@@ -194,7 +222,7 @@ export function AiChatPanel() {
     setChatLoading(true);
 
     const ctrl = await streamAiChat(
-      { messages: apiMessages, context },
+      { messages: apiMessages, context, systemOverride },
       {
         onChunk: (delta) => appendToLastAssistantMessage(delta),
         onDone: (full) => {
@@ -218,7 +246,37 @@ export function AiChatPanel() {
     setChatLoading(false);
   }, [setChatLoading]);
 
+  const applySlashCompletion = (tpl: PromptTemplate) => {
+    // Expand the typed `/xxx` to `/<full-name> ` so the user can append args
+    setInput(`/${tpl.name} `);
+    setSlashIndex(0);
+    textareaRef.current?.focus();
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (showSlashDropdown) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSlashIndex(i => Math.min(i + 1, slashMatches.length - 1));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSlashIndex(i => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
+        e.preventDefault();
+        const tpl = slashMatches[slashIndex];
+        if (tpl) applySlashCompletion(tpl);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setInput('');
+        return;
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -321,13 +379,38 @@ export function AiChatPanel() {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className={`flex items-end gap-2 px-3 py-2 border-t ${border}`}>
+      <div className={`relative flex items-end gap-2 px-3 py-2 border-t ${border}`}>
+        {showSlashDropdown && (
+          <div className={`absolute left-3 right-3 bottom-full mb-1 rounded border shadow-lg overflow-hidden ${
+            theme === 'dark' ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-zinc-300'
+          }`}>
+            <div className={`px-2 py-1 text-[10px] uppercase tracking-wider ${textMuted}`}>
+              Slash Commands ({slashMatches.length})
+            </div>
+            {slashMatches.map((tpl, i) => (
+              <button
+                key={tpl.name}
+                type="button"
+                onMouseEnter={() => setSlashIndex(i)}
+                onClick={() => applySlashCompletion(tpl)}
+                className={`w-full text-left px-2 py-1.5 text-xs flex items-baseline gap-2 ${
+                  i === slashIndex
+                    ? (theme === 'dark' ? 'bg-blue-900/40' : 'bg-blue-100')
+                    : ''
+                }`}
+              >
+                <span className="font-mono text-blue-400">/{tpl.name}</span>
+                <span className={textMuted}>— {tpl.description}</span>
+              </button>
+            ))}
+          </div>
+        )}
         <textarea
           ref={textareaRef}
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="메시지를 입력하세요... (Enter: 전송, Shift+Enter: 줄바꿈)"
+          placeholder="메시지를 입력하세요... (/ 슬래시 명령 • Enter: 전송)"
           rows={1}
           className={`flex-1 px-2.5 py-1.5 rounded text-xs resize-none ${inputBg} outline-none max-h-24 overflow-y-auto`}
           style={{ minHeight: '32px' }}
