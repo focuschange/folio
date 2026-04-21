@@ -67,6 +67,59 @@ html, body, #root {
   background: rgba(59, 130, 246, 0.08);
 }
 
+/* AI @mention chip styling (input overlay + chat bubble) */
+.folio-mention-chip {
+  display: inline-block;
+  padding: 0 6px;
+  margin: 0 1px;
+  background: rgba(59, 130, 246, 0.18);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  border-radius: 999px;
+  font-weight: 500;
+  line-height: 1.25;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.light .folio-mention-chip {
+  background: rgba(59, 130, 246, 0.12);
+  color: #2563eb;
+}
+
+/* Mirror overlay for chat input — matches textarea font/padding/wrap so
+   chips align with the transparent textarea text. Caret stays on textarea. */
+.folio-mention-mirror {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-y: auto;
+  overflow-x: hidden;
+  font-family: inherit;
+  /* Must match textarea line-height exactly so chip baselines align with caret. */
+  line-height: 1.5;
+}
+.folio-mention-mirror::-webkit-scrollbar { display: none; }
+
+/* Inside the mirror, chips must NOT add geometry (padding/border/margin) —
+   otherwise the textarea caret, which tracks raw text width, falls out of
+   sync after each chip. We keep only the background + color highlight. */
+.folio-mention-mirror .folio-mention-chip {
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 2px;
+  background: rgba(59, 130, 246, 0.22);
+  color: inherit;
+  font-weight: inherit;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.light .folio-mention-mirror .folio-mention-chip {
+  background: rgba(59, 130, 246, 0.16);
+}
+
 /* AI Inline Edit (⌘K) decorations */
 .folio-ai-original-inline {
   text-decoration: line-through;
