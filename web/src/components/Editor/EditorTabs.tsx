@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { FileIcon } from '../../utils/fileIcons';
 import { X, Pin, ChevronRight, Check, AlertTriangle } from 'lucide-react';
@@ -26,6 +26,18 @@ export function EditorTabs() {
   const [subMenu, setSubMenu] = useState<{ kind: SubMenuKind; x: number; y: number }>({ kind: null, x: 0, y: 0 });
   const [hoverTooltip, setHoverTooltip] = useState<{ tabId: string; x: number } | null>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
+
+  // Whenever the active tab changes (e.g. tree double-click selects an already-open file),
+  // make sure the corresponding tab header is scrolled into view in the horizontal tab bar.
+  useEffect(() => {
+    if (!activeTabId) return;
+    const container = tabsRef.current;
+    if (!container) return;
+    const el = container.querySelector<HTMLElement>(`[data-tab-id="${activeTabId}"]`);
+    if (!el) return;
+    // `inline: 'nearest'` only scrolls horizontally if the tab is off-screen, avoiding jitter.
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+  }, [activeTabId, tabs.length]);
 
   const closeAllMenus = () => {
     setContextMenu(null);
@@ -107,6 +119,7 @@ export function EditorTabs() {
           return (
             <div
               key={tab.id}
+              data-tab-id={tab.id}
               draggable
               onDragStart={(e) => handleDragStart(e, index, tab.id, tab.name)}
               onDragOver={(e) => handleDragOver(e, index)}
