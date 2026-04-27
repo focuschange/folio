@@ -19,6 +19,8 @@ export interface EditorTab {
   cursorLine?: number;
   cursorColumn?: number;
   scrollTop?: number;
+  /** True when the underlying file no longer exists on disk. Set by the periodic sync. */
+  missing?: boolean;
 }
 
 export interface GitStatusEntry {

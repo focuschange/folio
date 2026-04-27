@@ -152,6 +152,7 @@ pub fn run() {
             file_commands::create_directory,
             file_commands::search_in_files,
             file_commands::open_folder_dialog,
+            file_commands::open_file_dialog,
             file_commands::save_file_dialog,
             file_commands::js_log,
             // Git commands

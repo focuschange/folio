@@ -313,11 +313,18 @@ fn search_recursive(
 }
 
 #[tauri::command]
-pub async fn save_file_dialog(app: tauri::AppHandle, default_name: Option<String>) -> Result<Option<String>, String> {
+pub async fn save_file_dialog(
+    app: tauri::AppHandle,
+    default_name: Option<String>,
+    default_dir: Option<String>,
+) -> Result<Option<String>, String> {
     let (tx, rx) = tokio::sync::oneshot::channel();
     let mut builder = app.dialog().file().set_title("Save File");
     if let Some(name) = default_name {
         builder = builder.set_file_name(&name);
+    }
+    if let Some(dir) = default_dir {
+        builder = builder.set_directory(std::path::PathBuf::from(dir));
     }
     builder.save_file(move |path| {
         let _ = tx.send(path.map(|p| format!("{}", p)));
@@ -333,6 +340,18 @@ pub async fn open_folder_dialog(app: tauri::AppHandle) -> Result<Option<String>,
         .set_title("Open Folder")
         .pick_folder(move |folder_path| {
             let _ = tx.send(folder_path.map(|p| format!("{}", p)));
+        });
+    rx.await.map_err(|e| format!("Dialog cancelled: {}", e))
+}
+
+#[tauri::command]
+pub async fn open_file_dialog(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .file()
+        .set_title("Open File")
+        .pick_file(move |file_path| {
+            let _ = tx.send(file_path.map(|p| format!("{}", p)));
         });
     rx.await.map_err(|e| format!("Dialog cancelled: {}", e))
 }

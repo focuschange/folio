@@ -53,20 +53,20 @@ async function restoreSessionFromDisk() {
     // Save the expandedDirs BEFORE loadDirectory overwrites them
     const savedExpandedDirs = session.expandedDirs ?? [];
 
-    // 1. Restore UI state (panels, sizes, tabs, etc.)
+    // 1. Restore UI state (panels, sizes, tabs, etc.). `restoreSession` intentionally
+    //    leaves projectRoots empty — they get repopulated below for paths that exist.
     useAppStore.getState().restoreSession(session);
 
-    // 2. Reload file trees for each project root
+    // 2. Reload file trees for each project root. Roots that no longer exist on disk
+    //    are silently skipped so they're naturally pruned from session state.
     if (session.projectRoots && session.projectRoots.length > 0) {
       for (const rootPath of session.projectRoots) {
+        if (!isTauri) continue;
         try {
-          if (isTauri) {
-            const tree = await tauriInvoke<FileEntry[]>('list_directory', { path: rootPath });
-            // Call addProjectRoot directly on store (not through hook)
-            useAppStore.getState().addProjectRoot(rootPath, tree);
-          }
-        } catch (e) {
-          console.error('Failed to reload directory:', rootPath, e);
+          const tree = await tauriInvoke<FileEntry[]>('list_directory', { path: rootPath });
+          useAppStore.getState().addProjectRoot(rootPath, tree);
+        } catch {
+          // silently drop — directory no longer exists or is inaccessible
         }
       }
     }
@@ -76,8 +76,44 @@ async function restoreSessionFromDisk() {
     if (savedExpandedDirs.length > 0) {
       useAppStore.setState({ expandedDirs: new Set(savedExpandedDirs) });
     }
+
+    // 4. Mark any open tabs whose backing file is missing.
+    await checkOpenTabsExistence();
   } catch (e) {
     console.error('Failed to restore session:', e);
+  }
+}
+
+// Verify each open (non-untitled) tab still points to an existing file. Marks missing
+// tabs in the store; UI shows a warning indicator on those tabs.
+async function checkOpenTabsExistence() {
+  if (!isTauri) return;
+  const state = useAppStore.getState();
+  for (const tab of state.tabs) {
+    if (tab.path.startsWith('untitled-')) continue;
+    try {
+      // get_file_info errors out if the path doesn't exist.
+      await tauriInvoke('get_file_info', { path: tab.path });
+      if (tab.missing) state.setTabMissing(tab.id, false);
+    } catch {
+      if (!tab.missing) state.setTabMissing(tab.id, true);
+    }
+  }
+}
+
+// Re-fetch every project root from disk. Used by the periodic sync to keep the tree
+// in lockstep with the actual filesystem (new files, deletions, renames done outside
+// the app).
+async function syncProjectRootsWithDisk() {
+  if (!isTauri) return;
+  const state = useAppStore.getState();
+  for (const rootPath of state.projectRoots) {
+    try {
+      const tree = await tauriInvoke<FileEntry[]>('list_directory', { path: rootPath });
+      state.addProjectRoot(rootPath, tree);
+    } catch {
+      // silently drop — directory removed; will be cleaned up on next save
+    }
   }
 }
 
@@ -95,6 +131,26 @@ export function useSession() {
   useEffect(() => {
     const interval = setInterval(saveSessionAsync, 30000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Periodically re-sync the file tree and tab existence with disk so external
+  // changes (files added/removed by other tools) are reflected in the UI.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      syncProjectRootsWithDisk();
+      checkOpenTabsExistence();
+    }, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Also sync immediately when the window regains focus.
+  useEffect(() => {
+    const onFocus = () => {
+      syncProjectRootsWithDisk();
+      checkOpenTabsExistence();
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
   }, []);
 
   // Save on beforeunload

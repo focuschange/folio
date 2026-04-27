@@ -25,7 +25,7 @@ function App() {
   useTheme();
   useSettings();
   useSession();
-  const { loadDirectory, openFolder, writeFile } = useFileSystem();
+  const { loadDirectory, openFolder, writeFile, openFileFromDialog } = useFileSystem();
 
   useEffect(() => {
     const isTauri = '__TAURI_INTERNALS__' in window;
@@ -36,8 +36,10 @@ function App() {
 
   const openFolderRef = useRef(openFolder);
   const writeFileRef = useRef(writeFile);
+  const openFileFromDialogRef = useRef(openFileFromDialog);
   openFolderRef.current = openFolder;
   writeFileRef.current = writeFile;
+  openFileFromDialogRef.current = openFileFromDialog;
 
   // Dispatch action by ID (used by both menu events and keyboard shortcuts)
   useEffect(() => {
@@ -51,6 +53,8 @@ function App() {
           break;
         }
         case 'open-file':
+          openFileFromDialogRef.current();
+          break;
         case 'open-folder':
           openFolderRef.current();
           break;
@@ -360,7 +364,7 @@ function App() {
 
       if (meta && !shift && !alt) {
         if (key === 'n') id = 'new-file';
-        else if (key === 'o') id = 'open-file';
+        else if (key === 'o') id = 'open-folder';
         else if (key === 's') id = 'save';
         else if (key === 'w') id = 'close-tab';
         else if (key === ',') id = 'settings';
@@ -383,6 +387,7 @@ function App() {
         }
       } else if (meta && alt && !shift) {
         if (key === 'b') id = 'toggle-right-panel';
+        else if (key === 'o') id = 'open-file';
         else if (key === 'arrowleft') id = 'sidebar-narrow';
         else if (key === 'arrowright') id = 'sidebar-widen';
       } else if (!meta && shift && alt) {

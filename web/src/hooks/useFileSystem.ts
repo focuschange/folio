@@ -125,6 +125,31 @@ export function useFileSystem() {
     }
   }, [loadDirectory]);
 
+  const openFileFromDialog = useCallback(async () => {
+    if (!isTauri) return;
+    try {
+      const selected = await tauriInvoke<string | null>('open_file_dialog');
+      if (!selected) return;
+      const name = selected.split('/').pop() ?? selected;
+      if (!isEditableFile(name)) return;
+      const content = await readFile(selected);
+      openTab(selected, name, content);
+    } catch (e) {
+      console.error('Failed to open file dialog:', e);
+    }
+  }, [readFile, openTab]);
+
+  // Re-read a project root from disk and update the store (used after file moves/renames).
+  const refreshDirectory = useCallback(async (rootPath: string) => {
+    if (!isTauri) return;
+    try {
+      const tree = await tauriInvoke<FileEntry[]>('list_directory', { path: rootPath });
+      addProjectRoot(rootPath, tree);
+    } catch (e) {
+      console.error('Failed to refresh directory:', e);
+    }
+  }, [addProjectRoot]);
+
   const createFile = useCallback(async (dirPath: string, name: string): Promise<boolean> => {
     if (isTauri) {
       try {
@@ -183,6 +208,8 @@ export function useFileSystem() {
     writeFile,
     openFileInEditor,
     openFolder,
+    openFileFromDialog,
+    refreshDirectory,
     createFile,
     createDirectory,
     deleteEntry,

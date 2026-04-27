@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import {
-  FilePlus, FolderOpen, Save, FileDown,
+  FilePlus, FileSearch, FolderOpen, Save, FileDown,
   Undo2, Redo2, Scissors, Copy, Clipboard,
   Search, FolderSearch,
   PanelLeft, PanelRight, List, Maximize2,
@@ -99,7 +99,7 @@ export function Toolbar() {
   const openTab = useAppStore(s => s.openTab);
   const previewVisible = useAppStore(s => s.previewVisible);
   const togglePreview = useAppStore(s => s.togglePreview);
-  const { openFolder, writeFile } = useFileSystem();
+  const { openFolder, writeFile, openFileFromDialog } = useFileSystem();
   const iconSize = 16;
   const iconColor = theme === 'dark' ? '#a1a1aa' : '#52525b';
 
@@ -350,6 +350,7 @@ export function Toolbar() {
       <div className="flex items-center px-2 py-1 gap-0.5">
         {/* File */}
         <ToolbarButton icon={<FilePlus size={iconSize} color={iconColor} />} tooltip="New File" onClick={handleNewFile} />
+        <ToolbarButton icon={<FileSearch size={iconSize} color={iconColor} />} tooltip="Open File (⌘⌥O)" onClick={openFileFromDialog} />
         <ToolbarButton icon={<FolderOpen size={iconSize} color={iconColor} />} tooltip="Open Folder" onClick={openFolder} />
         <ToolbarButton icon={<Save size={iconSize} color={iconColor} />} tooltip="Save (⌘S)" onClick={handleSave} disabled={!activeTab} />
         <ToolbarButton icon={<FileDown size={iconSize} color={iconColor} />} tooltip="Save As... (⌘⇧S)" onClick={handleSaveAs} disabled={!activeTab} />
