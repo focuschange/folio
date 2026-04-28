@@ -17,6 +17,9 @@ import type { EditorTab } from '../../types';
 
 interface MonacoWrapperProps {
   tab: EditorTab;
+  /** Optional callback invoked once the Monaco editor instance is mounted (and again with `null` on unmount).
+   * Used by parent components that need to read scroll position, decorations, etc. */
+  onEditorMount?: (editor: monaco.editor.IStandaloneCodeEditor | null) => void;
 }
 
 // Stable reference for the "no bookmarks" case — avoids returning a fresh [] on every selector call,
@@ -65,7 +68,7 @@ registerCustomLanguages();
 // editor mount after registration inherits the provider.
 registerGhostText();
 
-export function MonacoWrapper({ tab }: MonacoWrapperProps) {
+export function MonacoWrapper({ tab, onEditorMount }: MonacoWrapperProps) {
   const settings = useAppStore(s => s.settings);
   const updateTabContent = useAppStore(s => s.updateTabContent);
   const updateTabCursor = useAppStore(s => s.updateTabCursor);
@@ -78,6 +81,7 @@ export function MonacoWrapper({ tab }: MonacoWrapperProps) {
   const handleMount: OnMount = useCallback((editor) => {
     editorRef.current = editor;
     setMonacoEditorRef(editor);
+    onEditorMount?.(editor);
 
     editor.onDidChangeCursorPosition((e) => {
       updateTabCursor(tab.id, e.position.lineNumber, e.position.column);
@@ -262,6 +266,14 @@ export function MonacoWrapper({ tab }: MonacoWrapperProps) {
       // Don't clear on unmount — another tab may take over
     };
   }, [tab.id]);
+
+  // Notify parent on unmount so external scroll-sync (etc) can disconnect.
+  useEffect(() => {
+    return () => {
+      onEditorMount?.(null);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleChange = useCallback((value: string | undefined) => {
     if (value !== undefined) {

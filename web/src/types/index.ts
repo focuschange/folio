@@ -142,6 +142,8 @@ export interface AppSettings {
   cursorBlinking: 'blink' | 'smooth' | 'phase' | 'expand' | 'solid';
   cursorStyle: 'line' | 'block' | 'underline';
   editorPadding: number;
+  /** When in markdown split-preview mode, sync scroll between editor and preview. Default true. */
+  scrollSync: boolean;
 }
 
 export interface FileInfo {
@@ -206,4 +208,5 @@ export const defaultSettings: AppSettings = {
   cursorBlinking: 'smooth',
   cursorStyle: 'line',
   editorPadding: 16,
+  scrollSync: true,
 };

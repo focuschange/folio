@@ -171,6 +171,7 @@ export function SettingsDialog() {
               <SettingToggle label="Auto Save" checked={settings.autoSave} onChange={v => update('autoSave', v)} theme={theme} />
               <SettingToggle label="Bracket Pair Colorization" checked={settings.bracketPairColorization} onChange={v => update('bracketPairColorization', v)} theme={theme} />
               <SettingToggle label="Smooth Scrolling" checked={settings.smoothScrolling} onChange={v => update('smoothScrolling', v)} theme={theme} />
+              <SettingToggle label="Sync Markdown Preview Scroll" checked={settings.scrollSync} onChange={v => update('scrollSync', v)} theme={theme} />
             </>
           )}
 

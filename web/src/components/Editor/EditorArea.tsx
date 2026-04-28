@@ -1,3 +1,5 @@
+import { useState, useRef } from 'react';
+import type { editor as MonacoEditor } from 'monaco-editor';
 import { useAppStore } from '../../store/useAppStore';
 import { EditorTabs } from './EditorTabs';
 import { BreadcrumbBar } from './BreadcrumbBar';
@@ -7,6 +9,7 @@ import { HtmlPreview } from '../Markdown/HtmlPreview';
 import { isMarkdown, isHtml } from '../../utils/languages';
 import { FileText, FolderOpen } from 'lucide-react';
 import { useFileSystem } from '../../hooks/useFileSystem';
+import { useScrollSync } from '../../hooks/useScrollSync';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
 
 export function EditorArea() {
@@ -17,6 +20,7 @@ export function EditorArea() {
   const splitDirection = useAppStore(s => s.splitDirection);
   const splitTabId = useAppStore(s => s.splitTabId);
   const setSplitTab = useAppStore(s => s.setSplitTab);
+  const scrollSync = useAppStore(s => s.settings.scrollSync);
   const activeTab = tabs.find(t => t.id === activeTabId);
   const splitTab = splitTabId ? tabs.find(t => t.id === splitTabId) : null;
   const { openFolder } = useFileSystem();
@@ -25,6 +29,16 @@ export function EditorArea() {
   const showHtmlPreview = activeTab && isHtml(activeTab.path) && previewVisible;
   const showPreview = showMarkdownPreview || showHtmlPreview;
   const isSplit = splitDirection !== 'none' && splitTab;
+
+  // Scroll-sync wiring: only enabled when the markdown preview pane is visible
+  // alongside the editor. State (not just ref) so the hook re-runs after mount.
+  const [editorInstance, setEditorInstance] = useState<MonacoEditor.IStandaloneCodeEditor | null>(null);
+  const previewContainerRef = useRef<HTMLDivElement | null>(null);
+  useScrollSync({
+    editor: editorInstance,
+    previewEl: previewContainerRef.current,
+    enabled: !!showMarkdownPreview && scrollSync,
+  });
 
   if (!activeTab) {
     return (
@@ -67,11 +81,13 @@ export function EditorArea() {
       return (
         <div className="h-full flex">
           <div className="flex-1 min-w-0">
-            <MonacoWrapper tab={activeTab} />
+            <MonacoWrapper tab={activeTab} onEditorMount={setEditorInstance} />
           </div>
           <div className={`w-px ${theme === 'dark' ? 'bg-zinc-700' : 'bg-zinc-200'}`} />
           <div className="flex-1 min-w-0">
-            {showMarkdownPreview && <MarkdownPreview content={activeTab.content} filePath={activeTab.path} />}
+            {showMarkdownPreview && (
+              <MarkdownPreview ref={previewContainerRef} content={activeTab.content} filePath={activeTab.path} />
+            )}
             {showHtmlPreview && <HtmlPreview content={activeTab.content} />}
           </div>
         </div>
