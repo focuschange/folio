@@ -1,10 +1,24 @@
 use std::fs;
 use std::path::PathBuf;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 
 fn settings_path() -> Result<PathBuf, String> {
     let home = dirs::home_dir().ok_or_else(|| "Cannot determine home directory".to_string())?;
     Ok(home.join(".folio").join("settings.json"))
 }
+
+/// Restrict a file to owner-only read/write (0600) and its parent directory to 0700.
+#[cfg(unix)]
+fn harden_permissions(path: &std::path::Path) {
+    let _ = fs::set_permissions(path, fs::Permissions::from_mode(0o600));
+    if let Some(parent) = path.parent() {
+        let _ = fs::set_permissions(parent, fs::Permissions::from_mode(0o700));
+    }
+}
+
+#[cfg(not(unix))]
+fn harden_permissions(_path: &std::path::Path) {}
 
 #[tauri::command]
 pub fn load_settings() -> Result<String, String> {
@@ -22,7 +36,9 @@ pub fn save_settings(settings_json: String) -> Result<(), String> {
         fs::create_dir_all(parent)
             .map_err(|e| format!("Failed to create settings directory: {}", e))?;
     }
-    fs::write(&path, settings_json).map_err(|e| format!("Failed to save settings: {}", e))
+    fs::write(&path, settings_json).map_err(|e| format!("Failed to save settings: {}", e))?;
+    harden_permissions(&path);
+    Ok(())
 }
 
 #[tauri::command]
@@ -31,8 +47,11 @@ pub fn save_session(session_json: String) -> Result<(), String> {
         .ok_or_else(|| "Cannot determine home directory".to_string())?
         .join(".folio");
     fs::create_dir_all(&dir).map_err(|e| format!("Failed to create session directory: {}", e))?;
-    fs::write(dir.join("session.json"), session_json)
-        .map_err(|e| format!("Failed to save session: {}", e))
+    let path = dir.join("session.json");
+    fs::write(&path, session_json)
+        .map_err(|e| format!("Failed to save session: {}", e))?;
+    harden_permissions(&path);
+    Ok(())
 }
 
 #[tauri::command]

@@ -33,3 +33,18 @@ package.json
 
 # Claude Code local workspace (tool permissions, plans, memory)
 .claude/
+
+# Security: never commit secrets or credentials
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*id_rsa*
+*id_ed25519*
+*.cert
+*.crt
+ai-config.json
+ssh-connections.json
+.folio/

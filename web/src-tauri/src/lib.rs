@@ -122,6 +122,8 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        // Persist & restore window position/size/maximized state across launches.
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         .setup(|app| {
             write_log("setup: start");
             let menu = build_menu(app.handle())?;
@@ -150,8 +152,10 @@ pub fn run() {
             file_commands::delete_file,
             file_commands::create_file,
             file_commands::create_directory,
+            file_commands::untitled_dir,
             file_commands::search_in_files,
             file_commands::open_folder_dialog,
+            file_commands::open_file_dialog,
             file_commands::save_file_dialog,
             file_commands::js_log,
             // Git commands

@@ -5,7 +5,7 @@ import rehypeHighlight from 'rehype-highlight';
 import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import { useAppStore } from '../../store/useAppStore';
-import { useMemo } from 'react';
+import { useMemo, forwardRef, useEffect, useState } from 'react';
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
@@ -67,25 +67,39 @@ interface MarkdownPreviewProps {
   filePath?: string;
 }
 
-export function MarkdownPreview({ content, filePath }: MarkdownPreviewProps) {
-  const theme = useAppStore(s => s.settings.theme);
+export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
+  function MarkdownPreview({ content, filePath }, ref) {
+    const theme = useAppStore(s => s.settings.theme);
 
-  // Pre-process content to replace local image URLs with asset:// URLs
-  const processed = useMemo(() => preprocessImages(content, filePath), [content, filePath]);
+    // Debounce content updates to reduce flicker — re-parsing the entire markdown
+    // tree on every keystroke is what causes the preview to flash. 150ms feels
+    // close to instant but avoids the per-keystroke re-render storm.
+    const [debouncedContent, setDebouncedContent] = useState(content);
+    useEffect(() => {
+      const id = setTimeout(() => setDebouncedContent(content), 150);
+      return () => clearTimeout(id);
+    }, [content]);
 
-  return (
-    <div className={`h-full overflow-y-auto p-6 ${
-      theme === 'dark' ? 'bg-zinc-800 text-zinc-200' : 'bg-white text-zinc-800'
-    }`}>
-      <div className="max-w-3xl mx-auto markdown-body">
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm, remarkMath]}
-          rehypePlugins={[rehypeRaw, rehypeHighlight, rehypeKatex]}
-          urlTransform={(url) => url}
-        >
-          {processed}
-        </ReactMarkdown>
+    // Pre-process content to replace local image URLs with asset:// URLs
+    const processed = useMemo(() => preprocessImages(debouncedContent, filePath), [debouncedContent, filePath]);
+
+    return (
+      <div
+        ref={ref}
+        className={`h-full overflow-y-auto p-6 ${
+          theme === 'dark' ? 'bg-zinc-800 text-zinc-200' : 'bg-white text-zinc-800'
+        }`}
+      >
+        <div className="max-w-3xl mx-auto markdown-body">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm, remarkMath]}
+            rehypePlugins={[rehypeRaw, rehypeHighlight, rehypeKatex]}
+            urlTransform={(url) => url}
+          >
+            {processed}
+          </ReactMarkdown>
+        </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
+);

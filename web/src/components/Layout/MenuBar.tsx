@@ -7,6 +7,7 @@ import { isFormatSupported } from '../../utils/formatter';
 
 type MenuItem =
   | { kind: 'item'; label: string; shortcut?: string; onClick: () => void; disabled?: boolean }
+  | { kind: 'submenu'; label: string; items: MenuItem[]; disabled?: boolean }
   | { kind: 'separator' };
 
 interface MenuDef {
@@ -18,7 +19,8 @@ interface MenuDef {
 export function MenuBar() {
   const theme = useAppStore(s => s.settings.theme);
   const { toggleTheme } = useTheme();
-  const { openFolder, writeFile } = useFileSystem();
+  const { openFolder, writeFile, openFileFromDialog, openFileInEditor } = useFileSystem();
+  const recentFiles = useAppStore(s => s.recentFiles);
 
   const toggleSidebar = useAppStore(s => s.toggleSidebar);
   const toggleRightPanel = useAppStore(s => s.toggleRightPanel);
@@ -144,6 +146,14 @@ export function MenuBar() {
     }
   }, [activeTab, writeFile]);
 
+  const handleSaveAll = useCallback(async () => {
+    const { saveAllDirtyTabs } = await import('../../utils/saveAll');
+    await saveAllDirtyTabs(
+      writeFile,
+      () => getMonacoEditorRef()?.getValue() ?? null,
+    );
+  }, [writeFile]);
+
   const handleCloseTab = useCallback(() => {
     if (activeTabId) closeTab(activeTabId);
   }, [activeTabId, closeTab]);
@@ -248,10 +258,27 @@ export function MenuBar() {
       label: '파일',
       items: [
         { kind: 'item', label: '새 파일', shortcut: '⌘N', onClick: handleNewFile },
+        { kind: 'item', label: '파일 열기…', shortcut: '⌘⌥O', onClick: openFileFromDialog },
         { kind: 'item', label: '폴더 열기…', shortcut: '⌘O', onClick: openFolder },
+        {
+          kind: 'submenu',
+          label: '최근 파일',
+          disabled: recentFiles.length === 0,
+          items: recentFiles.length === 0
+            ? [{ kind: 'item', label: '(없음)', onClick: () => {}, disabled: true }]
+            : recentFiles.slice(0, 10).map(p => ({
+                kind: 'item' as const,
+                label: p.length > 50 ? '…' + p.slice(p.length - 49) : p,
+                onClick: () => {
+                  const name = p.split('/').pop() ?? p;
+                  openFileInEditor(p, name);
+                },
+              })),
+        },
         { kind: 'separator' },
         { kind: 'item', label: '저장', shortcut: '⌘S', onClick: handleSave, disabled: !hasActiveTab },
         { kind: 'item', label: '다른 이름으로 저장…', shortcut: '⌘⇧S', onClick: handleSaveAs, disabled: !hasActiveTab },
+        { kind: 'item', label: '모두 저장', shortcut: '⌘⌥S', onClick: handleSaveAll, disabled: !tabs.some(t => t.dirty) },
         { kind: 'separator' },
         { kind: 'item', label: '탭 닫기', shortcut: '⌘W', onClick: handleCloseTab, disabled: !hasActiveTab },
         { kind: 'item', label: '모든 탭 닫기', onClick: closeAllTabs, disabled: tabs.length === 0 },
@@ -313,7 +340,8 @@ export function MenuBar() {
       ],
     },
   ], [
-    handleNewFile, openFolder, handleSave, handleSaveAs, handleCloseTab, closeAllTabs, tabs.length, hasActiveTab,
+    handleNewFile, openFolder, openFileFromDialog, openFileInEditor, recentFiles,
+    handleSave, handleSaveAs, handleSaveAll, handleCloseTab, closeAllTabs, tabs, hasActiveTab,
     handleUndo, handleRedo, handleCut, handleCopy, handlePaste, handleFind, handleReplace, toggleSearch,
     toggleSidebar, toggleRightPanel, toggleOutline, toggleTerminal, togglePreview, handleZenMode, theme, toggleTheme,
     handleFormatDocument, handleFormatSelection, toggleGitPanel, toggleSettings, handleAbout,
@@ -360,6 +388,23 @@ export function MenuBar() {
                   if (item.kind === 'separator') {
                     return <div key={`sep-${idx}`} className={`my-1 h-px ${separatorBg}`} />;
                   }
+                  if (item.kind === 'submenu') {
+                    return (
+                      <SubmenuItem
+                        key={`${menu.id}-${idx}`}
+                        label={item.label}
+                        items={item.items}
+                        disabled={item.disabled}
+                        theme={theme}
+                        itemText={itemText}
+                        menuItemHover={menuItemHover}
+                        shortcutText={shortcutText}
+                        menuBg={menuBg}
+                        separatorBg={separatorBg}
+                        onItemClick={() => setOpenMenuId(null)}
+                      />
+                    );
+                  }
                   return (
                     <div
                       key={`${menu.id}-${idx}`}
@@ -384,6 +429,77 @@ export function MenuBar() {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// One-level submenu rendered inline inside the parent dropdown.
+function SubmenuItem({
+  label, items, disabled, theme, itemText, menuItemHover, shortcutText, menuBg, separatorBg, onItemClick,
+}: {
+  label: string;
+  items: MenuItem[];
+  disabled?: boolean;
+  theme: string;
+  itemText: string;
+  menuItemHover: string;
+  shortcutText: string;
+  menuBg: string;
+  separatorBg: string;
+  onItemClick: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  void theme;
+  const arrow = '▸';
+
+  return (
+    <div
+      className="relative"
+      onMouseEnter={() => !disabled && setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <div
+        className={`flex items-center justify-between gap-6 px-3 py-1 text-xs cursor-pointer ${itemText} ${
+          disabled ? 'opacity-40 cursor-not-allowed' : menuItemHover
+        } group`}
+      >
+        <span>{label}</span>
+        <span className={`${shortcutText} group-hover:text-white/80`}>{arrow}</span>
+      </div>
+      {open && !disabled && (
+        <div
+          className={`absolute top-0 left-full -ml-0.5 py-1 rounded-md shadow-lg border z-50 min-w-[260px] max-w-[420px] ${menuBg}`}
+        >
+          {items.map((sub, sidx) => {
+            if (sub.kind === 'separator') {
+              return <div key={`subsep-${sidx}`} className={`my-1 h-px ${separatorBg}`} />;
+            }
+            if (sub.kind === 'submenu') {
+              // Don't support nested submenus beyond one level
+              return null;
+            }
+            return (
+              <div
+                key={`sub-${sidx}`}
+                onClick={() => {
+                  if (sub.disabled) return;
+                  sub.onClick();
+                  setOpen(false);
+                  onItemClick();
+                }}
+                className={`flex items-center justify-between gap-6 px-3 py-1 text-xs cursor-pointer ${itemText} ${
+                  sub.disabled ? 'opacity-40 cursor-not-allowed' : menuItemHover
+                } group truncate`}
+              >
+                <span className="truncate">{sub.label}</span>
+                {sub.shortcut && (
+                  <span className={`${shortcutText} group-hover:text-white/80`}>{sub.shortcut}</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

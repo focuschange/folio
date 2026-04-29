@@ -73,6 +73,8 @@ interface AppState {
   updateTabCursor: (id: string, line: number, column: number) => void;
   setTabEncoding: (id: string, encoding: string) => void;
   setTabLanguage: (id: string, language: string) => void;
+  updateTabPath: (id: string, newPath: string, newName?: string) => void;
+  setTabMissing: (id: string, missing: boolean) => void;
 
   // Actions - File tree
   setFileTree: (tree: FileEntry[]) => void;
@@ -81,6 +83,7 @@ interface AppState {
   setSelectedPath: (path: string | null) => void;
   collapseAllDirs: () => void;
   expandAllDirs: () => void;
+  expandToPath: (path: string) => void;
   addProjectRoot: (path: string, tree: FileEntry[]) => void;
   removeProjectRoot: (path: string) => void;
 
@@ -172,7 +175,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   previewVisible: true,
   chatMessages: [],
   chatLoading: false,
-  settings: defaultSettings,
+  // Initialize settings synchronously from cached theme so first paint already
+  // matches the user's preference (no dark→light flash). Full settings are
+  // hydrated from disk by useSettings shortly after mount.
+  settings: (() => {
+    let t: 'dark' | 'light' = defaultSettings.theme;
+    try {
+      const cached = typeof window !== 'undefined' ? localStorage.getItem('folio-theme') : null;
+      if (cached === 'light' || cached === 'dark') t = cached;
+    } catch { /* ignore */ }
+    return { ...defaultSettings, theme: t };
+  })(),
 
   // Tab actions
   openTab: (path, name, content) => {
@@ -284,6 +297,28 @@ export const useAppStore = create<AppState>((set, get) => ({
       ),
     })),
 
+  setTabMissing: (id, missing) =>
+    set(state => ({
+      tabs: state.tabs.map(t => (t.id === id ? { ...t, missing } : t)),
+    })),
+
+  updateTabPath: (id, newPath, newName) =>
+    set(state => ({
+      tabs: state.tabs.map(t => {
+        if (t.id !== id) return t;
+        const name = newName ?? newPath.split('/').pop() ?? t.name;
+        const ext = name.includes('.') ? name.split('.').pop()?.toLowerCase() : '';
+        const langMap: Record<string, string> = {
+          js: 'javascript', ts: 'typescript', jsx: 'javascript', tsx: 'typescript',
+          json: 'json', md: 'markdown', html: 'html', css: 'css', scss: 'scss',
+          py: 'python', java: 'java', go: 'go', rs: 'rust', sql: 'sql',
+          yaml: 'yaml', yml: 'yaml', sh: 'shell', toml: 'toml',
+        };
+        const language = (ext && langMap[ext]) || t.language;
+        return { ...t, path: newPath, name, language };
+      }),
+    })),
+
   // File tree actions
   setFileTree: (tree) => set({ fileTree: tree }),
   setProjectRoot: (root) => set({ projectRoot: root }),
@@ -299,6 +334,21 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSelectedPath: (path) => set({ selectedPath: path }),
 
   collapseAllDirs: () => set({ expandedDirs: new Set<string>() }),
+
+  // Expand all ancestor directories of `path` so the file becomes visible in the tree.
+  expandToPath: (path) =>
+    set(state => {
+      // Add every ancestor dir up to (but not including) the file itself.
+      // We iterate by splitting on '/', since the tree paths are absolute filesystem paths.
+      const next = new Set(state.expandedDirs);
+      const segments = path.split('/').filter(Boolean);
+      let acc = path.startsWith('/') ? '' : '';
+      for (let i = 0; i < segments.length - 1; i++) {
+        acc = acc + '/' + segments[i];
+        next.add(acc);
+      }
+      return { expandedDirs: next };
+    }),
 
   expandAllDirs: () => {
     const state = get();
@@ -319,18 +369,20 @@ export const useAppStore = create<AppState>((set, get) => ({
     const state = get();
     const lastSegment = path.split('/').pop() || path;
     const rootEntry: FileEntry = { name: lastSegment, path, isDir: true, children: tree };
-    const newExpanded = new Set(state.expandedDirs);
-    newExpanded.add(path);
 
     const existsInTree = state.fileTree.some(e => e.path === path);
     const existsInRoots = state.projectRoots.includes(path);
 
     if (existsInTree) {
-      // Replace existing entry in fileTree
+      // This is a refresh of an existing root (e.g. periodic disk sync). Replace the
+      // tree entry but DO NOT touch expandedDirs — user may have collapsed the root
+      // and we shouldn't keep auto-expanding it on every sync.
       const newFileTree = state.fileTree.map(e => e.path === path ? rootEntry : e);
-      set({ fileTree: newFileTree, projectRoot: path, expandedDirs: newExpanded });
+      set({ fileTree: newFileTree });
     } else {
-      // Append to fileTree (even if path is already in projectRoots)
+      // First-time add: auto-expand the new root.
+      const newExpanded = new Set(state.expandedDirs);
+      newExpanded.add(path);
       set({
         projectRoots: existsInRoots ? state.projectRoots : [...state.projectRoots, path],
         fileTree: [...state.fileTree, rootEntry],
@@ -499,7 +551,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   restoreSession: (session) => set({
     tabs: session.tabs ?? [],
     activeTabId: session.activeTabId ?? null,
-    projectRoots: session.projectRoots ?? [],
+    // Start projectRoots empty — they'll be re-populated by addProjectRoot() in
+    // useSession.ts only for paths that actually exist on disk. This keeps
+    // projectRoots in sync with fileTree (preventing index mismatch in reorder).
+    projectRoots: [],
     sidebarVisible: session.sidebarVisible ?? true,
     rightPanelVisible: session.rightPanelVisible ?? false,
     gitPanelVisible: session.gitPanelVisible ?? false,
@@ -516,12 +571,21 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   getSessionState: () => {
     const s = get();
+    const SENSITIVE_PATTERNS = [
+      /\.env(\.|$)/i,
+      /\.(pem|key|p12|pfx|cert|crt)$/i,
+      /id_(rsa|ed25519|ecdsa|dsa)(\.pub)?$/i,
+      /ai-config\.json$/i,
+      /ssh-connections\.json$/i,
+    ];
+    const isSensitivePath = (path: string) =>
+      SENSITIVE_PATTERNS.some(re => re.test(path));
     return {
       tabs: s.tabs.map(t => ({
         id: t.id,
         path: t.path,
         name: t.name,
-        content: t.content,
+        content: isSensitivePath(t.path) ? '' : t.content,
         language: t.language,
         dirty: t.dirty,
         pinned: t.pinned,

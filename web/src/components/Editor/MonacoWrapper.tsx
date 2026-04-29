@@ -17,6 +17,9 @@ import type { EditorTab } from '../../types';
 
 interface MonacoWrapperProps {
   tab: EditorTab;
+  /** Optional callback invoked once the Monaco editor instance is mounted (and again with `null` on unmount).
+   * Used by parent components that need to read scroll position, decorations, etc. */
+  onEditorMount?: (editor: monaco.editor.IStandaloneCodeEditor | null) => void;
 }
 
 // Stable reference for the "no bookmarks" case — avoids returning a fresh [] on every selector call,
@@ -65,7 +68,7 @@ registerCustomLanguages();
 // editor mount after registration inherits the provider.
 registerGhostText();
 
-export function MonacoWrapper({ tab }: MonacoWrapperProps) {
+export function MonacoWrapper({ tab, onEditorMount }: MonacoWrapperProps) {
   const settings = useAppStore(s => s.settings);
   const updateTabContent = useAppStore(s => s.updateTabContent);
   const updateTabCursor = useAppStore(s => s.updateTabCursor);
@@ -74,10 +77,32 @@ export function MonacoWrapper({ tab }: MonacoWrapperProps) {
   const bookmarks = bookmarksMap[tab.path] ?? EMPTY_LINES;
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
   const decorationsRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Monaco's `automaticLayout` ResizeObserver can miss the window's first
+  // resize event(s) on macOS launch, leaving the editor with a stale viewport.
+  // Belt-and-braces: also re-trigger layout on every window resize. Calling
+  // editor.layout() with NO arguments asks Monaco to re-measure itself —
+  // this does NOT enter dimension-override mode (unlike layout({width,height})),
+  // so it preserves correct line-number gutter alignment and folding behavior.
+  useEffect(() => {
+    const onWinResize = () => {
+      try { editorRef.current?.layout(); } catch { /* disposed */ }
+    };
+    window.addEventListener('resize', onWinResize);
+    return () => window.removeEventListener('resize', onWinResize);
+  }, []);
 
   const handleMount: OnMount = useCallback((editor) => {
     editorRef.current = editor;
     setMonacoEditorRef(editor);
+    onEditorMount?.(editor);
+
+    // One-shot relayout after the first paint — covers the case where the
+    // editor mounted while its container was still settling its size.
+    requestAnimationFrame(() => {
+      try { editor.layout(); } catch { /* disposed */ }
+    });
 
     editor.onDidChangeCursorPosition((e) => {
       updateTabCursor(tab.id, e.position.lineNumber, e.position.column);
@@ -263,6 +288,14 @@ export function MonacoWrapper({ tab }: MonacoWrapperProps) {
     };
   }, [tab.id]);
 
+  // Notify parent on unmount so external scroll-sync (etc) can disconnect.
+  useEffect(() => {
+    return () => {
+      onEditorMount?.(null);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleChange = useCallback((value: string | undefined) => {
     if (value !== undefined) {
       updateTabContent(tab.id, value);
@@ -272,7 +305,7 @@ export function MonacoWrapper({ tab }: MonacoWrapperProps) {
   const monacoTheme = settings.theme === 'dark' ? 'vs-dark' : 'vs';
 
   return (
-    <div className="h-full w-full">
+    <div ref={containerRef} className="h-full w-full">
       <Editor
         theme={monacoTheme}
         language={tab.language}

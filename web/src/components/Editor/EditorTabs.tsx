@@ -1,7 +1,8 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { FileIcon } from '../../utils/fileIcons';
-import { X, Pin, ChevronRight, Check } from 'lucide-react';
+import { X, Pin, ChevronRight, Check, AlertTriangle } from 'lucide-react';
+import { setCurrentDrag, clearCurrentDrag } from '../../utils/dragState';
 import { COMMON_ENCODINGS } from '../../utils/encodings';
 import { ALL_LANGUAGES } from '../../utils/languages';
 
@@ -26,6 +27,18 @@ export function EditorTabs() {
   const [hoverTooltip, setHoverTooltip] = useState<{ tabId: string; x: number } | null>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
 
+  // Whenever the active tab changes (e.g. tree double-click selects an already-open file),
+  // make sure the corresponding tab header is scrolled into view in the horizontal tab bar.
+  useEffect(() => {
+    if (!activeTabId) return;
+    const container = tabsRef.current;
+    if (!container) return;
+    const el = container.querySelector<HTMLElement>(`[data-tab-id="${activeTabId}"]`);
+    if (!el) return;
+    // `inline: 'nearest'` only scrolls horizontally if the tab is off-screen, avoiding jitter.
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+  }, [activeTabId, tabs.length]);
+
   const closeAllMenus = () => {
     setContextMenu(null);
     setSubMenu({ kind: null, x: 0, y: 0 });
@@ -37,7 +50,19 @@ export function EditorTabs() {
     setSubMenu({ kind: null, x: 0, y: 0 });
   };
 
-  const handleDragStart = (index: number) => setDragIndex(index);
+  const handleDragStart = (e: React.DragEvent, index: number, tabId: string, tabName: string) => {
+    setDragIndex(index);
+    // Track the tab via a module-level singleton so external drop targets (FileTree) can read it
+    // even when the webview hides custom MIME types during `dragover`.
+    setCurrentDrag({ kind: 'tab', tabId });
+    // Setting plain-text data ensures the native drag actually initiates in webviews that
+    // require some setData call (no effectAllowed — that conflicts with default copy in some webviews).
+    try {
+      e.dataTransfer.setData('text/plain', tabName);
+    } catch {
+      // dataTransfer may be locked in some browsers — fall back silently
+    }
+  };
   const handleDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault();
     if (dragIndex !== null && dragIndex !== index) {
@@ -45,7 +70,10 @@ export function EditorTabs() {
       setDragIndex(index);
     }
   };
-  const handleDragEnd = () => setDragIndex(null);
+  const handleDragEnd = () => {
+    setDragIndex(null);
+    clearCurrentDrag();
+  };
 
   if (tabs.length === 0) return null;
 
@@ -83,7 +111,7 @@ export function EditorTabs() {
     <div className="relative">
       <div
         ref={tabsRef}
-        className={`flex items-end overflow-x-auto border-b ${border} select-none shrink-0`}
+        className={`folio-autohide-scrollbar flex items-end overflow-x-auto border-b ${border} select-none shrink-0`}
         style={{ scrollbarWidth: 'thin' }}
       >
         {tabs.map((tab, index) => {
@@ -91,8 +119,9 @@ export function EditorTabs() {
           return (
             <div
               key={tab.id}
+              data-tab-id={tab.id}
               draggable
-              onDragStart={() => handleDragStart(index)}
+              onDragStart={(e) => handleDragStart(e, index, tab.id, tab.name)}
               onDragOver={(e) => handleDragOver(e, index)}
               onDragEnd={handleDragEnd}
               onClick={() => setActiveTab(tab.id)}
@@ -107,8 +136,10 @@ export function EditorTabs() {
               style={{ minWidth: 'fit-content', maxWidth: '180px' }}
             >
               {tab.pinned && <Pin size={12} className="text-blue-400 shrink-0" />}
-              <FileIcon name={tab.name} size={14} />
-              <span className="truncate">
+              {tab.missing
+                ? <AlertTriangle size={14} className="text-amber-500 shrink-0" />
+                : <FileIcon name={tab.name} size={14} />}
+              <span className={`truncate ${tab.missing ? 'line-through text-amber-500' : ''}`}>
                 {tab.dirty && <span className="text-blue-400">* </span>}
                 {tab.name}
               </span>
@@ -138,6 +169,9 @@ export function EditorTabs() {
             }`}
             style={{ left: hoverTooltip.x, top: (tabsRef.current?.getBoundingClientRect().bottom ?? 0) + 4 }}
           >
+            {t.missing && (
+              <div className="text-amber-500 font-semibold mb-0.5">⚠ 파일이 사라졌습니다</div>
+            )}
             {t.path}
           </div>
         );

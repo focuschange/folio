@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import {
-  FilePlus, FolderOpen, Save, FileDown,
+  FilePlus, FileSearch, FolderOpen, Save, FileDown,
   Undo2, Redo2, Scissors, Copy, Clipboard,
   Search, FolderSearch,
   PanelLeft, PanelRight, List, Maximize2,
@@ -17,11 +17,9 @@ import {
   Eye, EyeOff,
 } from 'lucide-react';
 import { isFormatSupported } from '../../utils/formatter';
-import * as md from '../../utils/markdownActions';
 import { startInlineEdit } from '../Editor/inlineEdit';
 import { HeadingDropdown } from './HeadingDropdown';
 import { MoreMenuDropdown, type MoreMenuItem } from './MoreMenuDropdown';
-import { ImageInsertDialog } from '../Markdown/ImageInsertDialog';
 import { useAppStore } from '../../store/useAppStore';
 import { useTheme } from '../../hooks/useTheme';
 import { useFileSystem } from '../../hooks/useFileSystem';
@@ -45,7 +43,7 @@ interface ToolbarButtonProps {
   disabled?: boolean;
 }
 
-function ToolbarButton({ icon, tooltip, onClick, active, disabled }: ToolbarButtonProps) {
+export function ToolbarButton({ icon, tooltip, onClick, active, disabled }: ToolbarButtonProps) {
   const [showTooltip, setShowTooltip] = useState(false);
   const theme = useAppStore(s => s.settings.theme);
   const hoverBg = theme === 'dark' ? 'hover:bg-zinc-700' : 'hover:bg-zinc-200';
@@ -73,7 +71,7 @@ function ToolbarButton({ icon, tooltip, onClick, active, disabled }: ToolbarButt
   );
 }
 
-function Separator() {
+export function ToolbarSeparator() {
   const theme = useAppStore(s => s.settings.theme);
   return <div className={`w-px h-5 mx-1 ${theme === 'dark' ? 'bg-zinc-700' : 'bg-zinc-300'}`} />;
 }
@@ -97,15 +95,13 @@ export function Toolbar() {
   const activeTabId = useAppStore(s => s.activeTabId);
   const tabs = useAppStore(s => s.tabs);
   const openTab = useAppStore(s => s.openTab);
-  const previewVisible = useAppStore(s => s.previewVisible);
-  const togglePreview = useAppStore(s => s.togglePreview);
-  const { openFolder, writeFile } = useFileSystem();
+  const fontSize = useAppStore(s => s.settings.fontSize ?? 14);
+  const updateSettings = useAppStore(s => s.updateSettings);
+  const { openFolder, writeFile, openFileFromDialog } = useFileSystem();
   const iconSize = 16;
   const iconColor = theme === 'dark' ? '#a1a1aa' : '#52525b';
 
   const activeTab = tabs.find(t => t.id === activeTabId);
-  const isMarkdown = activeTab?.language === 'markdown';
-  const isHtmlFile = activeTab?.language === 'html';
 
   // --- Action handlers ---
 
@@ -222,50 +218,6 @@ export function Toolbar() {
     monacoEditorRef?.trigger('toolbar', 'actions.find', null);
   }, []);
 
-  // Markdown action wrappers (use shared markdownActions utility)
-  const md_ = useCallback(<T extends unknown[]>(fn: (editor: NonNullable<typeof monacoEditorRef>, ...args: T) => void) => {
-    return (...args: T) => {
-      if (!monacoEditorRef) return;
-      fn(monacoEditorRef, ...args);
-    };
-  }, []);
-
-  const handleBold = useCallback(() => { if (monacoEditorRef) md.wrapSelection(monacoEditorRef, '**', '**'); }, []);
-  const handleItalic = useCallback(() => { if (monacoEditorRef) md.wrapSelection(monacoEditorRef, '*', '*'); }, []);
-  const handleStrikethrough = useCallback(() => { if (monacoEditorRef) md.wrapSelection(monacoEditorRef, '~~', '~~'); }, []);
-  const handleInlineCode = useCallback(() => { if (monacoEditorRef) md.wrapSelection(monacoEditorRef, '`', '`'); }, []);
-  const handleHeading = useCallback((level: number) => { if (monacoEditorRef) md.setHeading(monacoEditorRef, level); }, []);
-  const handleBulletList = useCallback(() => { if (monacoEditorRef) md.prefixLines(monacoEditorRef, '- '); }, []);
-  const handleNumberedList = useCallback(() => { if (monacoEditorRef) md.prefixLines(monacoEditorRef, '1. '); }, []);
-  const handleTaskList = useCallback(() => { if (monacoEditorRef) md.prefixLines(monacoEditorRef, '- [ ] '); }, []);
-  const handleQuote = useCallback(() => { if (monacoEditorRef) md.prefixLines(monacoEditorRef, '> '); }, []);
-  const handleLink = useCallback(() => { if (monacoEditorRef) md.insertLink(monacoEditorRef); }, []);
-  const [imageDialogOpen, setImageDialogOpen] = useState(false);
-  const handleImage = useCallback(() => { setImageDialogOpen(true); }, []);
-  const handleImageInsert = useCallback((result: { url: string; alt: string; width?: number; height?: number }) => {
-    if (!monacoEditorRef) return;
-    const { url, alt, width, height } = result;
-    // If size is specified, use <img> HTML tag; otherwise use standard markdown
-    if (width || height) {
-      const sizeAttrs = [
-        width ? `width="${width}"` : '',
-        height ? `height="${height}"` : '',
-      ].filter(Boolean).join(' ');
-      md.insertAtCursor(monacoEditorRef, `<img src="${url}" alt="${alt || ''}" ${sizeAttrs} />`);
-    } else {
-      md.insertAtCursor(monacoEditorRef, `![${alt || 'image'}](${url})`);
-    }
-  }, []);
-  const handleCodeBlock = useCallback(() => { if (monacoEditorRef) md.insertCodeBlock(monacoEditorRef, ''); }, []);
-  const handleHorizontalRule = useCallback(() => { if (monacoEditorRef) md.insertHorizontalRule(monacoEditorRef); }, []);
-  const handleMathBlock = useCallback(() => { if (monacoEditorRef) md.insertMathBlock(monacoEditorRef); }, []);
-  const handleMermaid = useCallback(() => { if (monacoEditorRef) md.insertMermaid(monacoEditorRef); }, []);
-  const handleFootnote = useCallback(() => { if (monacoEditorRef) md.insertFootnote(monacoEditorRef); }, []);
-  const handleIndent = useCallback(() => { if (monacoEditorRef) md.indent(monacoEditorRef); }, []);
-  const handleOutdent = useCallback(() => { if (monacoEditorRef) md.outdent(monacoEditorRef); }, []);
-  const handleInsertTOC = useCallback(() => { if (monacoEditorRef) md.insertTOC(monacoEditorRef); }, []);
-  // Suppress unused warning
-  void md_;
 
   const handleFormatDocument = useCallback(async () => {
     if (!monacoEditorRef || !activeTab) return;
@@ -323,8 +275,6 @@ export function Toolbar() {
     }
   }, [activeTab]);
 
-  const handleInsertTable = useCallback(() => { if (monacoEditorRef) md.insertTable(monacoEditorRef); }, []);
-
   const handleAiEdit = useCallback(() => {
     if (!monacoEditorRef || !activeTab) return;
     const model = monacoEditorRef.getModel();
@@ -337,12 +287,8 @@ export function Toolbar() {
     });
   }, [activeTab, theme]);
 
-  // Split toolbar into two rows when editing markdown:
-  //  Row 1 — File / Edit / Search / View / Format / Git / Theme / Settings (always)
-  //  Row 2 — Markdown-specific buttons (only when current tab is markdown)
   const rowBg = theme === 'dark' ? 'bg-zinc-900' : 'bg-zinc-50';
   const rowBorder = theme === 'dark' ? 'border-zinc-700' : 'border-zinc-200';
-  const row2Bg = theme === 'dark' ? 'bg-zinc-900/60' : 'bg-zinc-100';
 
   return (
     <div className={`flex flex-col select-none shrink-0 border-b ${rowBg} ${rowBorder}`}>
@@ -350,11 +296,12 @@ export function Toolbar() {
       <div className="flex items-center px-2 py-1 gap-0.5">
         {/* File */}
         <ToolbarButton icon={<FilePlus size={iconSize} color={iconColor} />} tooltip="New File" onClick={handleNewFile} />
+        <ToolbarButton icon={<FileSearch size={iconSize} color={iconColor} />} tooltip="Open File (⌘⌥O)" onClick={openFileFromDialog} />
         <ToolbarButton icon={<FolderOpen size={iconSize} color={iconColor} />} tooltip="Open Folder" onClick={openFolder} />
         <ToolbarButton icon={<Save size={iconSize} color={iconColor} />} tooltip="Save (⌘S)" onClick={handleSave} disabled={!activeTab} />
         <ToolbarButton icon={<FileDown size={iconSize} color={iconColor} />} tooltip="Save As... (⌘⇧S)" onClick={handleSaveAs} disabled={!activeTab} />
 
-        <Separator />
+        <ToolbarSeparator />
 
         {/* Edit */}
         <ToolbarButton icon={<Undo2 size={iconSize} color={iconColor} />} tooltip="Undo (⌘Z)" onClick={handleUndo} disabled={!activeTab} />
@@ -363,13 +310,13 @@ export function Toolbar() {
         <ToolbarButton icon={<Copy size={iconSize} color={iconColor} />} tooltip="Copy (⌘C)" onClick={handleCopy} disabled={!activeTab} />
         <ToolbarButton icon={<Clipboard size={iconSize} color={iconColor} />} tooltip="Paste (⌘V)" onClick={handlePaste} disabled={!activeTab} />
 
-        <Separator />
+        <ToolbarSeparator />
 
         {/* Search */}
         <ToolbarButton icon={<Search size={iconSize} color={iconColor} />} tooltip="Find (⌘F)" onClick={handleFind} disabled={!activeTab} />
         <ToolbarButton icon={<FolderSearch size={iconSize} color={iconColor} />} tooltip="Search in Project (⌘⇧F)" onClick={toggleSearch} />
 
-        <Separator />
+        <ToolbarSeparator />
 
         {/* View */}
         <ToolbarButton icon={<PanelLeft size={iconSize} color={iconColor} />} tooltip="Toggle Sidebar (⌘B)" onClick={toggleSidebar} active={sidebarVisible} />
@@ -388,7 +335,7 @@ export function Toolbar() {
           }
         }} />
 
-        <Separator />
+        <ToolbarSeparator />
 
         {/* Format */}
         <ToolbarButton icon={<Wand2 size={iconSize} color={iconColor} />} tooltip="Format Document (⇧⌥F)" onClick={handleFormatDocument} disabled={!activeTab} />
@@ -397,27 +344,38 @@ export function Toolbar() {
         {/* AI Inline Edit */}
         <ToolbarButton icon={<Sparkles size={iconSize} color="#8b5cf6" />} tooltip="AI Edit (⌘K)" onClick={handleAiEdit} disabled={!activeTab} />
 
-        <Separator />
+        <ToolbarSeparator />
 
         {/* Git */}
         <ToolbarButton icon={<GitBranch size={iconSize} color={iconColor} />} tooltip="Git Panel" onClick={toggleGitPanel} active={rightPanelVisible && activeRightTab === 'git'} />
 
-        {/* HTML Preview toggle — shown only for HTML files (markdown has its own in Row2) */}
-        {isHtmlFile && (
-          <>
-            <Separator />
-            <ToolbarButton
-              icon={previewVisible ? <EyeOff size={iconSize} color={iconColor} /> : <Eye size={iconSize} color={iconColor} />}
-              tooltip={previewVisible ? "Hide Preview (⌘⇧V)" : "Show Preview (⌘⇧V)"}
-              onClick={togglePreview}
-              active={previewVisible}
-              disabled={!activeTab}
-            />
-          </>
-        )}
 
         {/* Spacer */}
         <div className="flex-1" />
+
+        {/* Zoom indicator — click to reset to 100% */}
+        {fontSize !== 14 && (
+          <button
+            onClick={() => updateSettings({ fontSize: 14 })}
+            title="클릭하여 기본 크기로 복원 (⇧⌘0)"
+            className={`px-2 py-0.5 rounded text-xs font-mono tabular-nums transition-colors ${
+              theme === 'dark'
+                ? 'text-blue-400 hover:bg-zinc-700'
+                : 'text-blue-600 hover:bg-zinc-200'
+            }`}
+          >
+            {Math.round((fontSize / 14) * 100)}%
+          </button>
+        )}
+        {fontSize === 14 && (
+          <span className={`px-2 py-0.5 text-xs font-mono tabular-nums select-none ${
+            theme === 'dark' ? 'text-zinc-600' : 'text-zinc-400'
+          }`}>
+            100%
+          </span>
+        )}
+
+        <ToolbarSeparator />
 
         {/* Right side */}
         <ToolbarButton
@@ -428,40 +386,13 @@ export function Toolbar() {
         <ToolbarButton icon={<Settings size={iconSize} color={iconColor} />} tooltip="Settings (⌘,)" onClick={toggleSettings} />
       </div>
 
-      {/* Row 2: markdown-specific toolbar (only when editing a markdown file).
-          Items auto-overflow into a "More" dropdown when the row is too narrow. */}
-      {isMarkdown && (
-        <MarkdownToolbarRow
-          activeTab={!!activeTab}
-          iconSize={iconSize}
-          iconColor={iconColor}
-          borderCls={rowBorder}
-          bgCls={row2Bg}
-          previewVisible={previewVisible}
-          onHeading={handleHeading}
-          handlers={{
-            handleBold, handleItalic, handleStrikethrough, handleInlineCode,
-            handleBulletList, handleNumberedList, handleTaskList, handleQuote,
-            handleLink, handleImage, handleInsertTable, togglePreview,
-            handleCodeBlock, handleHorizontalRule, handleMathBlock, handleMermaid,
-            handleFootnote, handleIndent, handleOutdent, handleInsertTOC,
-          }}
-        />
-      )}
-
-      {/* Image insert dialog */}
-      <ImageInsertDialog
-        open={imageDialogOpen}
-        onClose={() => setImageDialogOpen(false)}
-        onInsert={handleImageInsert}
-      />
     </div>
   );
 }
 
 // --- Markdown toolbar row with automatic overflow ---
 
-interface MdHandlers {
+export interface MdHandlers {
   handleBold: () => void;
   handleItalic: () => void;
   handleStrikethrough: () => void;
@@ -496,7 +427,7 @@ interface MdItemDef {
   group?: boolean;
 }
 
-function MarkdownToolbarRow({
+export function MarkdownToolbarRow({
   activeTab,
   iconSize,
   iconColor,

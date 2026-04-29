@@ -49,7 +49,7 @@ async function getConfig(): Promise<CachedConfig | null> {
     const raw = JSON.parse(json) as Record<string, unknown>;
     cachedConfig = {
       provider: (raw.provider as string) || 'claude',
-      apiKey: (raw.api_key as string) || '',
+      apiKey: raw.has_api_key ? '(configured)' : '',
       ghostEnabled: !!raw.ghost_enabled,
       ghostModel: (raw.ghost_model as string) || undefined,
     };

@@ -10,6 +10,9 @@ export function useTheme() {
     root.classList.remove('dark', 'light');
     root.classList.add(theme);
     root.style.colorScheme = theme;
+    // Mirror to localStorage so index.html's pre-React script can apply the
+    // correct theme on next launch synchronously (no flash).
+    try { localStorage.setItem('folio-theme', theme); } catch { /* ignore */ }
   }, [theme]);
 
   const toggleTheme = () => {

@@ -5,6 +5,8 @@ export interface FileEntry {
   children?: FileEntry[];
   size?: number;
   modified?: string;
+  /** True for dot-files/directories and build artifact directories (node_modules, target, etc.) */
+  isHidden?: boolean;
 }
 
 export interface EditorTab {
@@ -19,6 +21,8 @@ export interface EditorTab {
   cursorLine?: number;
   cursorColumn?: number;
   scrollTop?: number;
+  /** True when the underlying file no longer exists on disk. Set by the periodic sync. */
+  missing?: boolean;
 }
 
 export interface GitStatusEntry {
@@ -140,6 +144,10 @@ export interface AppSettings {
   cursorBlinking: 'blink' | 'smooth' | 'phase' | 'expand' | 'solid';
   cursorStyle: 'line' | 'block' | 'underline';
   editorPadding: number;
+  /** When in markdown split-preview mode, sync scroll between editor and preview. Default true. */
+  scrollSync: boolean;
+  /** Show hidden files/directories (starting with '.') in the file tree. Default false. */
+  showHiddenFiles: boolean;
 }
 
 export interface FileInfo {
@@ -204,4 +212,6 @@ export const defaultSettings: AppSettings = {
   cursorBlinking: 'smooth',
   cursorStyle: 'line',
   editorPadding: 16,
+  scrollSync: true,
+  showHiddenFiles: false,
 };

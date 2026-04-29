@@ -1,0 +1,7 @@
+[allowlist]
+description = "Global allowlist"
+paths = [
+  ".gitignore",
+  "README.md",
+  ".gitleaks.toml",
+]

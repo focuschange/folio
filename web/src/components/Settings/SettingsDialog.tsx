@@ -13,6 +13,19 @@ async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Prom
 
 type SettingsTab = 'editor' | 'appearance' | 'layout' | 'ai';
 
+async function reloadAllRoots(includeHidden: boolean) {
+  if (!isTauri) return;
+  const state = useAppStore.getState();
+  for (const rootPath of state.projectRoots) {
+    try {
+      const tree = await tauriInvoke<import('../../types').FileEntry[]>(
+        'list_directory', { path: rootPath, includeHidden }
+      );
+      state.addProjectRoot(rootPath, tree);
+    } catch { /* ignore */ }
+  }
+}
+
 export function SettingsDialog() {
   const theme = useAppStore(s => s.settings.theme);
   const settings = useAppStore(s => s.settings);
@@ -42,7 +55,8 @@ export function SettingsDialog() {
         const cfg = JSON.parse(json);
         setAiConfig({
           provider: cfg.provider || 'claude',
-          apiKey: cfg.api_key || '',
+          // api_key is masked server-side; show placeholder when a key is already stored
+          apiKey: cfg.has_api_key ? '••••••••' : '',
           model: cfg.model || 'claude-sonnet-4-20250514',
           ghostEnabled: !!cfg.ghost_enabled,
           ghostModel: cfg.ghost_model || undefined,
@@ -53,9 +67,11 @@ export function SettingsDialog() {
 
   const saveAiConfig = async () => {
     if (!isTauri) return;
+    // Skip saving if the user left the masked placeholder (no change intended)
+    const apiKeyToSave = aiConfig.apiKey === '••••••••' ? null : aiConfig.apiKey;
     const json = JSON.stringify({
       provider: aiConfig.provider,
-      api_key: aiConfig.apiKey,
+      ...(apiKeyToSave !== null ? { api_key: apiKeyToSave } : {}),
       model: aiConfig.model,
       ghost_enabled: !!aiConfig.ghostEnabled,
       ghost_model: aiConfig.ghostModel || null,
@@ -82,6 +98,9 @@ export function SettingsDialog() {
 
   const update = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
     updateSettings({ [key]: value });
+    if (key === 'showHiddenFiles') {
+      reloadAllRoots(value as boolean);
+    }
   };
 
   return (
@@ -171,6 +190,7 @@ export function SettingsDialog() {
               <SettingToggle label="Auto Save" checked={settings.autoSave} onChange={v => update('autoSave', v)} theme={theme} />
               <SettingToggle label="Bracket Pair Colorization" checked={settings.bracketPairColorization} onChange={v => update('bracketPairColorization', v)} theme={theme} />
               <SettingToggle label="Smooth Scrolling" checked={settings.smoothScrolling} onChange={v => update('smoothScrolling', v)} theme={theme} />
+              <SettingToggle label="Sync Markdown Preview Scroll" checked={settings.scrollSync} onChange={v => update('scrollSync', v)} theme={theme} />
             </>
           )}
 
@@ -198,6 +218,7 @@ export function SettingsDialog() {
                   className={inputClass}
                 />
               </SettingRow>
+              <SettingToggle label="Show Hidden Files" checked={settings.showHiddenFiles} onChange={v => update('showHiddenFiles', v)} theme={theme} />
             </>
           )}
 
