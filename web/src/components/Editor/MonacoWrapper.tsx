@@ -77,11 +77,32 @@ export function MonacoWrapper({ tab, onEditorMount }: MonacoWrapperProps) {
   const bookmarks = bookmarksMap[tab.path] ?? EMPTY_LINES;
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
   const decorationsRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Monaco's `automaticLayout` ResizeObserver can miss the window's first
+  // resize event(s) on macOS launch, leaving the editor with a stale viewport.
+  // Belt-and-braces: also re-trigger layout on every window resize. Calling
+  // editor.layout() with NO arguments asks Monaco to re-measure itself —
+  // this does NOT enter dimension-override mode (unlike layout({width,height})),
+  // so it preserves correct line-number gutter alignment and folding behavior.
+  useEffect(() => {
+    const onWinResize = () => {
+      try { editorRef.current?.layout(); } catch { /* disposed */ }
+    };
+    window.addEventListener('resize', onWinResize);
+    return () => window.removeEventListener('resize', onWinResize);
+  }, []);
 
   const handleMount: OnMount = useCallback((editor) => {
     editorRef.current = editor;
     setMonacoEditorRef(editor);
     onEditorMount?.(editor);
+
+    // One-shot relayout after the first paint — covers the case where the
+    // editor mounted while its container was still settling its size.
+    requestAnimationFrame(() => {
+      try { editor.layout(); } catch { /* disposed */ }
+    });
 
     editor.onDidChangeCursorPosition((e) => {
       updateTabCursor(tab.id, e.position.lineNumber, e.position.column);
@@ -284,7 +305,7 @@ export function MonacoWrapper({ tab, onEditorMount }: MonacoWrapperProps) {
   const monacoTheme = settings.theme === 'dark' ? 'vs-dark' : 'vs';
 
   return (
-    <div className="h-full w-full">
+    <div ref={containerRef} className="h-full w-full">
       <Editor
         theme={monacoTheme}
         language={tab.language}

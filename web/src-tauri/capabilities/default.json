@@ -25,6 +25,7 @@
     "shell:default",
     "shell:allow-open",
     "dialog:default",
-    "fs:default"
+    "fs:default",
+    "window-state:default"
   ]
 }

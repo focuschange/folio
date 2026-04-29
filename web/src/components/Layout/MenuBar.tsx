@@ -146,6 +146,14 @@ export function MenuBar() {
     }
   }, [activeTab, writeFile]);
 
+  const handleSaveAll = useCallback(async () => {
+    const { saveAllDirtyTabs } = await import('../../utils/saveAll');
+    await saveAllDirtyTabs(
+      writeFile,
+      () => getMonacoEditorRef()?.getValue() ?? null,
+    );
+  }, [writeFile]);
+
   const handleCloseTab = useCallback(() => {
     if (activeTabId) closeTab(activeTabId);
   }, [activeTabId, closeTab]);
@@ -270,6 +278,7 @@ export function MenuBar() {
         { kind: 'separator' },
         { kind: 'item', label: '저장', shortcut: '⌘S', onClick: handleSave, disabled: !hasActiveTab },
         { kind: 'item', label: '다른 이름으로 저장…', shortcut: '⌘⇧S', onClick: handleSaveAs, disabled: !hasActiveTab },
+        { kind: 'item', label: '모두 저장', shortcut: '⌘⌥S', onClick: handleSaveAll, disabled: !tabs.some(t => t.dirty) },
         { kind: 'separator' },
         { kind: 'item', label: '탭 닫기', shortcut: '⌘W', onClick: handleCloseTab, disabled: !hasActiveTab },
         { kind: 'item', label: '모든 탭 닫기', onClick: closeAllTabs, disabled: tabs.length === 0 },
@@ -332,7 +341,7 @@ export function MenuBar() {
     },
   ], [
     handleNewFile, openFolder, openFileFromDialog, openFileInEditor, recentFiles,
-    handleSave, handleSaveAs, handleCloseTab, closeAllTabs, tabs.length, hasActiveTab,
+    handleSave, handleSaveAs, handleSaveAll, handleCloseTab, closeAllTabs, tabs, hasActiveTab,
     handleUndo, handleRedo, handleCut, handleCopy, handlePaste, handleFind, handleReplace, toggleSearch,
     toggleSidebar, toggleRightPanel, toggleOutline, toggleTerminal, togglePreview, handleZenMode, theme, toggleTheme,
     handleFormatDocument, handleFormatSelection, toggleGitPanel, toggleSettings, handleAbout,

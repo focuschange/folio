@@ -60,10 +60,11 @@ async function restoreSessionFromDisk() {
     // 2. Reload file trees for each project root. Roots that no longer exist on disk
     //    are silently skipped so they're naturally pruned from session state.
     if (session.projectRoots && session.projectRoots.length > 0) {
+      const includeHidden = useAppStore.getState().settings.showHiddenFiles;
       for (const rootPath of session.projectRoots) {
         if (!isTauri) continue;
         try {
-          const tree = await tauriInvoke<FileEntry[]>('list_directory', { path: rootPath });
+          const tree = await tauriInvoke<FileEntry[]>('list_directory', { path: rootPath, includeHidden });
           useAppStore.getState().addProjectRoot(rootPath, tree);
         } catch {
           // silently drop — directory no longer exists or is inaccessible
@@ -101,22 +102,6 @@ async function checkOpenTabsExistence() {
   }
 }
 
-// Re-fetch every project root from disk. Used by the periodic sync to keep the tree
-// in lockstep with the actual filesystem (new files, deletions, renames done outside
-// the app).
-async function syncProjectRootsWithDisk() {
-  if (!isTauri) return;
-  const state = useAppStore.getState();
-  for (const rootPath of state.projectRoots) {
-    try {
-      const tree = await tauriInvoke<FileEntry[]>('list_directory', { path: rootPath });
-      state.addProjectRoot(rootPath, tree);
-    } catch {
-      // silently drop — directory removed; will be cleaned up on next save
-    }
-  }
-}
-
 export function useSession() {
   const hasRestored = useRef(false);
 
@@ -133,25 +118,7 @@ export function useSession() {
     return () => clearInterval(interval);
   }, []);
 
-  // Periodically re-sync the file tree and tab existence with disk so external
-  // changes (files added/removed by other tools) are reflected in the UI.
-  useEffect(() => {
-    const interval = setInterval(() => {
-      syncProjectRootsWithDisk();
-      checkOpenTabsExistence();
-    }, 15000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Also sync immediately when the window regains focus.
-  useEffect(() => {
-    const onFocus = () => {
-      syncProjectRootsWithDisk();
-      checkOpenTabsExistence();
-    };
-    window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
-  }, []);
+  // Auto-sync removed: manual refresh via the ↺ button in the file tree header.
 
   // Save on beforeunload
   useEffect(() => {

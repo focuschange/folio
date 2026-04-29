@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { useFileSystem } from '../../hooks/useFileSystem';
 import { FileIcon, FolderIcon, isEditableFile } from '../../utils/fileIcons';
-import { ChevronRight, ChevronDown, ChevronLeft, Filter, ChevronsDownUp, ChevronsUpDown, FolderPlus, X } from 'lucide-react';
+import { ChevronRight, ChevronDown, ChevronLeft, Filter, ChevronsDownUp, ChevronsUpDown, FolderPlus, X, Eye, EyeOff, RotateCw } from 'lucide-react';
 import type { FileEntry, EditorTab } from '../../types';
 import { FileTreeContextMenu, type ContextMenuItem } from './FileTreeContextMenu';
 import { PromptDialog } from './PromptDialog';
@@ -103,6 +103,11 @@ function TreeNode({
       case 'deleted': gitColor = 'text-red-400'; break;
     }
   }
+
+  // Hidden file / build-artifact color (muted, italic)
+  const hiddenStyle = entry.isHidden
+    ? (theme === 'dark' ? 'text-zinc-500 italic' : 'text-zinc-400 italic')
+    : '';
 
   const editable = entry.isDir || isEditableFile(entry.name);
 
@@ -207,7 +212,7 @@ function TreeNode({
             <FileIcon name={entry.name} size={15} />
           </>
         )}
-        <span className="truncate text-[13px]">{entry.name}</span>
+        <span className={`truncate text-[13px] ${hiddenStyle}`}>{entry.name}</span>
       </div>
       {entry.isDir && isExpanded && entry.children && (
         <div>
@@ -317,6 +322,8 @@ function RootHeader({
 
 export function FileTree() {
   const theme = useAppStore(s => s.settings.theme);
+  const showHiddenFiles = useAppStore(s => s.settings.showHiddenFiles);
+  const updateSettings = useAppStore(s => s.updateSettings);
   const fileTree = useAppStore(s => s.fileTree);
   const projectRoot = useAppStore(s => s.projectRoot);
   const projectRoots = useAppStore(s => s.projectRoots);
@@ -405,6 +412,21 @@ export function FileTree() {
   const refreshRootForPath = useCallback(async (path: string) => {
     const root = findRootFor(path, projectRoots);
     if (root) await refreshDirectory(root);
+  }, [projectRoots, refreshDirectory]);
+
+  const toggleHiddenFiles = useCallback(async () => {
+    // updateSettings writes to the store synchronously; refreshDirectory reads
+    // the latest value via getState() so the updated flag is already visible.
+    updateSettings({ showHiddenFiles: !showHiddenFiles });
+    for (const root of projectRoots) {
+      await refreshDirectory(root);
+    }
+  }, [showHiddenFiles, updateSettings, projectRoots, refreshDirectory]);
+
+  const reloadAllRoots = useCallback(async () => {
+    for (const root of projectRoots) {
+      await refreshDirectory(root);
+    }
   }, [projectRoots, refreshDirectory]);
 
   // --- Drop handler (file moves and tab drops) ---
@@ -652,11 +674,29 @@ export function FileTree() {
             <ChevronRight size={14} />
           </button>
           <button
+            onClick={reloadAllRoots}
+            className={`p-0.5 rounded ${theme === 'dark' ? 'hover:bg-zinc-700 text-zinc-500 hover:text-zinc-300' : 'hover:bg-zinc-200 text-zinc-400 hover:text-zinc-600'}`}
+            title="새로고침"
+          >
+            <RotateCw size={14} />
+          </button>
+          <button
             onClick={isAllCollapsed ? expandAllDirs : collapseAllDirs}
             className={`p-0.5 rounded ${theme === 'dark' ? 'hover:bg-zinc-700 text-zinc-500 hover:text-zinc-300' : 'hover:bg-zinc-200 text-zinc-400 hover:text-zinc-600'}`}
             title={isAllCollapsed ? "Expand All" : "Collapse All"}
           >
             {isAllCollapsed ? <ChevronsUpDown size={14} /> : <ChevronsDownUp size={14} />}
+          </button>
+          <button
+            onClick={toggleHiddenFiles}
+            className={`p-0.5 rounded ${theme === 'dark' ? 'hover:bg-zinc-700 hover:text-zinc-300' : 'hover:bg-zinc-200 hover:text-zinc-600'} ${
+              showHiddenFiles
+                ? (theme === 'dark' ? 'text-blue-400' : 'text-blue-500')
+                : (theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400')
+            }`}
+            title={showHiddenFiles ? "숨김파일 숨기기" : "숨김파일 표시"}
+          >
+            {showHiddenFiles ? <Eye size={14} /> : <EyeOff size={14} />}
           </button>
           <button
             onClick={openFolder}

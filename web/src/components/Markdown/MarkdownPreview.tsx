@@ -5,7 +5,7 @@ import rehypeHighlight from 'rehype-highlight';
 import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import { useAppStore } from '../../store/useAppStore';
-import { useMemo, forwardRef } from 'react';
+import { useMemo, forwardRef, useEffect, useState } from 'react';
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
@@ -71,8 +71,17 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
   function MarkdownPreview({ content, filePath }, ref) {
     const theme = useAppStore(s => s.settings.theme);
 
+    // Debounce content updates to reduce flicker — re-parsing the entire markdown
+    // tree on every keystroke is what causes the preview to flash. 150ms feels
+    // close to instant but avoids the per-keystroke re-render storm.
+    const [debouncedContent, setDebouncedContent] = useState(content);
+    useEffect(() => {
+      const id = setTimeout(() => setDebouncedContent(content), 150);
+      return () => clearTimeout(id);
+    }, [content]);
+
     // Pre-process content to replace local image URLs with asset:// URLs
-    const processed = useMemo(() => preprocessImages(content, filePath), [content, filePath]);
+    const processed = useMemo(() => preprocessImages(debouncedContent, filePath), [debouncedContent, filePath]);
 
     return (
       <div
