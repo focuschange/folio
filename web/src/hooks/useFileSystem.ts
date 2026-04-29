@@ -65,10 +65,17 @@ export function useFileSystem() {
   const addProjectRoot = useAppStore(s => s.addProjectRoot);
   const openTab = useAppStore(s => s.openTab);
 
+  // Always read the latest value directly from the store (not via closure)
+  // to avoid stale captures in refreshDirectory / loadDirectory callbacks.
+  const getShowHiddenFiles = useCallback(
+    () => useAppStore.getState().settings.showHiddenFiles,
+    [],
+  );
+
   const loadDirectory = useCallback(async (dirPath: string) => {
     if (isTauri) {
       try {
-        const tree = await tauriInvoke<FileEntry[]>('list_directory', { path: dirPath });
+        const tree = await tauriInvoke<FileEntry[]>('list_directory', { path: dirPath, includeHidden: getShowHiddenFiles() });
         addProjectRoot(dirPath, tree);
       } catch (e) {
         console.error('Failed to list directory:', e);
@@ -76,7 +83,7 @@ export function useFileSystem() {
     } else {
       addProjectRoot('/project', mockFileTree);
     }
-  }, [addProjectRoot]);
+  }, [addProjectRoot, getShowHiddenFiles]);
 
   const readFile = useCallback(async (filePath: string): Promise<string> => {
     if (isTauri) {
@@ -113,7 +120,7 @@ export function useFileSystem() {
   const openFolder = useCallback(async () => {
     if (isTauri) {
       try {
-        const selected = await tauriInvoke<string | null>('open_folder_dialog');
+        const selected = await tauriInvoke<string | null>('open_folder_dialog', { showHidden: getShowHiddenFiles() });
         if (selected) {
           await loadDirectory(selected);
         }
@@ -123,12 +130,12 @@ export function useFileSystem() {
     } else {
       await loadDirectory('/project');
     }
-  }, [loadDirectory]);
+  }, [loadDirectory, getShowHiddenFiles]);
 
   const openFileFromDialog = useCallback(async () => {
     if (!isTauri) return;
     try {
-      const selected = await tauriInvoke<string | null>('open_file_dialog');
+      const selected = await tauriInvoke<string | null>('open_file_dialog', { showHidden: getShowHiddenFiles() });
       if (!selected) return;
       const name = selected.split('/').pop() ?? selected;
       if (!isEditableFile(name)) return;
@@ -137,18 +144,18 @@ export function useFileSystem() {
     } catch (e) {
       console.error('Failed to open file dialog:', e);
     }
-  }, [readFile, openTab]);
+  }, [readFile, openTab, getShowHiddenFiles]);
 
   // Re-read a project root from disk and update the store (used after file moves/renames).
   const refreshDirectory = useCallback(async (rootPath: string) => {
     if (!isTauri) return;
     try {
-      const tree = await tauriInvoke<FileEntry[]>('list_directory', { path: rootPath });
+      const tree = await tauriInvoke<FileEntry[]>('list_directory', { path: rootPath, includeHidden: getShowHiddenFiles() });
       addProjectRoot(rootPath, tree);
     } catch (e) {
       console.error('Failed to refresh directory:', e);
     }
-  }, [addProjectRoot]);
+  }, [addProjectRoot, getShowHiddenFiles]);
 
   const createFile = useCallback(async (dirPath: string, name: string): Promise<boolean> => {
     if (isTauri) {

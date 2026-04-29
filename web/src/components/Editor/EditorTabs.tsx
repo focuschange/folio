@@ -111,7 +111,7 @@ export function EditorTabs() {
     <div className="relative">
       <div
         ref={tabsRef}
-        className={`flex items-end overflow-x-auto border-b ${border} select-none shrink-0`}
+        className={`folio-autohide-scrollbar flex items-end overflow-x-auto border-b ${border} select-none shrink-0`}
         style={{ scrollbarWidth: 'thin' }}
       >
         {tabs.map((tab, index) => {

@@ -175,7 +175,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   previewVisible: true,
   chatMessages: [],
   chatLoading: false,
-  settings: defaultSettings,
+  // Initialize settings synchronously from cached theme so first paint already
+  // matches the user's preference (no dark→light flash). Full settings are
+  // hydrated from disk by useSettings shortly after mount.
+  settings: (() => {
+    let t: 'dark' | 'light' = defaultSettings.theme;
+    try {
+      const cached = typeof window !== 'undefined' ? localStorage.getItem('folio-theme') : null;
+      if (cached === 'light' || cached === 'dark') t = cached;
+    } catch { /* ignore */ }
+    return { ...defaultSettings, theme: t };
+  })(),
 
   // Tab actions
   openTab: (path, name, content) => {

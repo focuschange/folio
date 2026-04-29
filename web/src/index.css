@@ -51,6 +51,31 @@ html, body, #root {
   background: #a1a1aa;
 }
 
+/*
+ * Auto-hiding scrollbar — used for the editor tab bar.
+ * Thumb is invisible by default; appears only while the user is interacting
+ * (hover or active scroll), and fades out quickly when hover ends.
+ */
+.folio-autohide-scrollbar::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+.folio-autohide-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.folio-autohide-scrollbar::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+  transition: background 150ms ease-out;
+}
+.folio-autohide-scrollbar:hover::-webkit-scrollbar-thumb,
+.folio-autohide-scrollbar:active::-webkit-scrollbar-thumb {
+  background: rgba(127, 127, 127, 0.45);
+}
+.folio-autohide-scrollbar:hover::-webkit-scrollbar-thumb:hover {
+  background: rgba(127, 127, 127, 0.7);
+}
+
 /* Monaco editor overrides */
 .monaco-editor .margin {
   background: transparent !important;

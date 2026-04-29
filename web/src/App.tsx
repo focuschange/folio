@@ -8,7 +8,7 @@ import { useAppStore } from './store/useAppStore';
 
 // Action IDs — must match Rust menu item IDs
 type ActionId =
-  | 'new-file' | 'open-file' | 'open-folder' | 'save' | 'save-as' | 'close-tab'
+  | 'new-file' | 'open-file' | 'open-folder' | 'save' | 'save-as' | 'save-all' | 'close-tab'
   | 'settings'
   | 'find' | 'find-in-project'
   | 'format-document' | 'format-selection'
@@ -19,7 +19,8 @@ type ActionId =
   | 'toggle-preview'
   | 'split-vertical' | 'split-horizontal'
   | 'sidebar-narrow' | 'sidebar-widen' | 'rightpanel-widen' | 'rightpanel-narrow'
-  | 'window-minimize' | 'window-zoom' | 'window-fullscreen';
+  | 'window-minimize' | 'window-zoom' | 'window-fullscreen'
+  | 'zoom-in' | 'zoom-out' | 'zoom-reset';
 
 function App() {
   useTheme();
@@ -143,6 +144,19 @@ function App() {
             } catch (e) {
               console.error('Save As error:', e);
             }
+          })();
+          break;
+        }
+        case 'save-all': {
+          // Untitled tabs auto-persist to ~/.folio/untitled (see utils/saveAll).
+          (async () => {
+            const { getMonacoEditorRef } = await import('./components/Layout/Toolbar');
+            const { saveAllDirtyTabs } = await import('./utils/saveAll');
+            const result = await saveAllDirtyTabs(
+              writeFileRef.current,
+              () => getMonacoEditorRef()?.getValue() ?? null,
+            );
+            console.log(`[save-all] saved ${result.saved}/${result.total} (failed: ${result.failed})`);
           })();
           break;
         }
@@ -338,6 +352,22 @@ function App() {
           })();
           break;
         }
+        case 'zoom-in': {
+          const cur = store.settings.fontSize ?? 14;
+          const next = Math.min(cur + 2, 40);
+          store.updateSettings({ fontSize: next });
+          break;
+        }
+        case 'zoom-out': {
+          const cur = store.settings.fontSize ?? 14;
+          const next = Math.max(cur - 2, 8);
+          store.updateSettings({ fontSize: next });
+          break;
+        }
+        case 'zoom-reset': {
+          store.updateSettings({ fontSize: 14 });
+          break;
+        }
       }
     };
 
@@ -379,6 +409,9 @@ function App() {
         else if (key === 'i') id = 'show-info';
         else if (key === 's') id = 'save-as';
         else if (key === '\\') id = 'split-horizontal';
+        else if (key === '=' || key === '+') id = 'zoom-in';
+        else if (key === '-' || key === '_') id = 'zoom-out';
+        else if (key === '0') id = 'zoom-reset';
         else if (key === 'v') {
           // Only intercept ⌘⇧V when current tab is markdown or HTML — otherwise let paste-without-formatting pass through
           const state = useAppStore.getState();
@@ -388,6 +421,7 @@ function App() {
       } else if (meta && alt && !shift) {
         if (key === 'b') id = 'toggle-right-panel';
         else if (key === 'o') id = 'open-file';
+        else if (key === 's' || key === 'ß') id = 'save-all'; // ß is what macOS produces for ⌥+S
         else if (key === 'arrowleft') id = 'sidebar-narrow';
         else if (key === 'arrowright') id = 'sidebar-widen';
       } else if (!meta && shift && alt) {

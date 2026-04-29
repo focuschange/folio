@@ -13,6 +13,19 @@ async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Prom
 
 type SettingsTab = 'editor' | 'appearance' | 'layout' | 'ai';
 
+async function reloadAllRoots(includeHidden: boolean) {
+  if (!isTauri) return;
+  const state = useAppStore.getState();
+  for (const rootPath of state.projectRoots) {
+    try {
+      const tree = await tauriInvoke<import('../../types').FileEntry[]>(
+        'list_directory', { path: rootPath, includeHidden }
+      );
+      state.addProjectRoot(rootPath, tree);
+    } catch { /* ignore */ }
+  }
+}
+
 export function SettingsDialog() {
   const theme = useAppStore(s => s.settings.theme);
   const settings = useAppStore(s => s.settings);
@@ -85,6 +98,9 @@ export function SettingsDialog() {
 
   const update = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
     updateSettings({ [key]: value });
+    if (key === 'showHiddenFiles') {
+      reloadAllRoots(value as boolean);
+    }
   };
 
   return (
@@ -202,6 +218,7 @@ export function SettingsDialog() {
                   className={inputClass}
                 />
               </SettingRow>
+              <SettingToggle label="Show Hidden Files" checked={settings.showHiddenFiles} onChange={v => update('showHiddenFiles', v)} theme={theme} />
             </>
           )}
 

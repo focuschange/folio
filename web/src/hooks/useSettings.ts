@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import type { AppSettings } from '../types';
 import { defaultSettings } from '../types';
@@ -15,6 +15,7 @@ export function useSettings() {
   const settings = useAppStore(s => s.settings);
   const setSettings = useAppStore(s => s.setSettings);
   const updateSettings = useAppStore(s => s.updateSettings);
+  const settingsLoaded = useRef(false);
 
   const loadSettings = useCallback(async () => {
     if (isTauri) {
@@ -65,8 +66,16 @@ export function useSettings() {
   }, [settings, updateSettings, saveSettings]);
 
   useEffect(() => {
-    loadSettings();
+    loadSettings().then(() => { settingsLoaded.current = true; });
   }, [loadSettings]);
+
+  // Auto-save whenever settings change (after initial load).
+  // This ensures any component using useAppStore(s => s.updateSettings) directly
+  // (e.g. FileTree toggle, SettingsDialog) also persists to disk.
+  useEffect(() => {
+    if (!settingsLoaded.current) return;
+    saveSettings(settings);
+  }, [settings, saveSettings]);
 
   return { settings, loadSettings, saveSettings, updateSettings: update };
 }

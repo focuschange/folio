@@ -5,6 +5,8 @@ export interface FileEntry {
   children?: FileEntry[];
   size?: number;
   modified?: string;
+  /** True for dot-files/directories and build artifact directories (node_modules, target, etc.) */
+  isHidden?: boolean;
 }
 
 export interface EditorTab {
@@ -144,6 +146,8 @@ export interface AppSettings {
   editorPadding: number;
   /** When in markdown split-preview mode, sync scroll between editor and preview. Default true. */
   scrollSync: boolean;
+  /** Show hidden files/directories (starting with '.') in the file tree. Default false. */
+  showHiddenFiles: boolean;
 }
 
 export interface FileInfo {
@@ -209,4 +213,5 @@ export const defaultSettings: AppSettings = {
   cursorStyle: 'line',
   editorPadding: 16,
   scrollSync: true,
+  showHiddenFiles: false,
 };
