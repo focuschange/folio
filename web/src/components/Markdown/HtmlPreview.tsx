@@ -48,7 +48,7 @@ export function HtmlPreview({ content }: HtmlPreviewProps) {
     }`}>
       <iframe
         srcDoc={wrappedContent}
-        sandbox="allow-scripts allow-same-origin"
+        sandbox="allow-scripts"
         title="HTML Preview"
         style={{ width: '100%', height: '100%', border: 'none' }}
       />

@@ -561,12 +561,21 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   getSessionState: () => {
     const s = get();
+    const SENSITIVE_PATTERNS = [
+      /\.env(\.|$)/i,
+      /\.(pem|key|p12|pfx|cert|crt)$/i,
+      /id_(rsa|ed25519|ecdsa|dsa)(\.pub)?$/i,
+      /ai-config\.json$/i,
+      /ssh-connections\.json$/i,
+    ];
+    const isSensitivePath = (path: string) =>
+      SENSITIVE_PATTERNS.some(re => re.test(path));
     return {
       tabs: s.tabs.map(t => ({
         id: t.id,
         path: t.path,
         name: t.name,
-        content: t.content,
+        content: isSensitivePath(t.path) ? '' : t.content,
         language: t.language,
         dirty: t.dirty,
         pinned: t.pinned,

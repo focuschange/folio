@@ -42,7 +42,8 @@ export function SettingsDialog() {
         const cfg = JSON.parse(json);
         setAiConfig({
           provider: cfg.provider || 'claude',
-          apiKey: cfg.api_key || '',
+          // api_key is masked server-side; show placeholder when a key is already stored
+          apiKey: cfg.has_api_key ? '••••••••' : '',
           model: cfg.model || 'claude-sonnet-4-20250514',
           ghostEnabled: !!cfg.ghost_enabled,
           ghostModel: cfg.ghost_model || undefined,
@@ -53,9 +54,11 @@ export function SettingsDialog() {
 
   const saveAiConfig = async () => {
     if (!isTauri) return;
+    // Skip saving if the user left the masked placeholder (no change intended)
+    const apiKeyToSave = aiConfig.apiKey === '••••••••' ? null : aiConfig.apiKey;
     const json = JSON.stringify({
       provider: aiConfig.provider,
-      api_key: aiConfig.apiKey,
+      ...(apiKeyToSave !== null ? { api_key: apiKeyToSave } : {}),
       model: aiConfig.model,
       ghost_enabled: !!aiConfig.ghostEnabled,
       ghost_model: aiConfig.ghostModel || null,

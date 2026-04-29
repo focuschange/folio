@@ -192,7 +192,8 @@ export function AiChatPanel() {
         const config = JSON.parse(json);
         setAiConfig({
           provider: config.provider || 'claude',
-          apiKey: config.api_key || '',
+          // API key is masked server-side; presence is indicated by has_api_key
+          apiKey: config.has_api_key ? '(configured)' : '',
           model: config.model || 'claude-sonnet-4-20250514',
         });
       })
@@ -448,6 +449,10 @@ export function AiChatPanel() {
                   {msg.content ? (
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
+                      urlTransform={(url) => {
+                        if (/^(https?|asset|data):/i.test(url)) return url;
+                        return '';
+                      }}
                       components={{
                         code: (props) => <CodeBlock theme={theme as 'dark' | 'light'} {...props} />,
                       }}

@@ -6,6 +6,8 @@ use std::net::TcpStream;
 use std::path::Path;
 use std::sync::Mutex;
 use tauri::State;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 
 pub struct SshState {
     pub sessions: Mutex<HashMap<String, Session>>,
@@ -37,6 +39,65 @@ pub struct SshTunnelInfo {
     pub active: bool,
 }
 
+// ---------------------------------------------------------------------------
+// TOFU (Trust On First Use) known-hosts store
+// ---------------------------------------------------------------------------
+
+fn known_hosts_path() -> std::path::PathBuf {
+    dirs::home_dir().unwrap_or_default().join(".folio").join("known_hosts.json")
+}
+
+fn load_known_hosts() -> HashMap<String, String> {
+    let path = known_hosts_path();
+    if !path.exists() { return HashMap::new(); }
+    std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+fn save_known_hosts(hosts: &HashMap<String, String>) {
+    let path = known_hosts_path();
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Ok(json) = serde_json::to_string_pretty(hosts) {
+        let _ = std::fs::write(&path, json);
+        #[cfg(unix)]
+        {
+            let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+        }
+    }
+}
+
+/// Check host key with TOFU semantics.
+/// Returns Ok(()) on first-use (stores fingerprint) or matching fingerprint.
+/// Returns Err with a descriptive message if the fingerprint changed (MITM warning).
+fn check_host_key_tofu(sess: &Session, host: &str, port: u16) -> Result<(), String> {
+    let host_key = sess.host_key()
+        .ok_or_else(|| "Server did not provide a host key".to_string())?;
+    let fingerprint = hex::encode(host_key.0);
+    let entry_key = format!("[{}]:{}", host, port);
+    let mut known = load_known_hosts();
+    match known.get(&entry_key) {
+        None => {
+            // First connection — trust and store (TOFU)
+            known.insert(entry_key, fingerprint);
+            save_known_hosts(&known);
+            Ok(())
+        }
+        Some(stored) if stored == &fingerprint => Ok(()),
+        Some(stored) => Err(format!(
+            "HOST KEY CHANGED for {}:{}\n\
+             Stored:  {}\n\
+             Current: {}\n\
+             Possible MITM attack. Remove the entry from ~/.folio/known_hosts.json \
+             to trust the new key.",
+            host, port, stored, fingerprint
+        )),
+    }
+}
+
 #[tauri::command]
 pub fn ssh_connect(
     state: State<'_, SshState>,
@@ -54,6 +115,9 @@ pub fn ssh_connect(
     sess.set_tcp_stream(tcp);
     sess.handshake()
         .map_err(|e| format!("Handshake failed: {}", e))?;
+
+    // TOFU host key verification — must happen after handshake, before auth
+    check_host_key_tofu(&sess, &host, port)?;
 
     if let Some(key) = key_path {
         let key_path = if key.starts_with('~') {

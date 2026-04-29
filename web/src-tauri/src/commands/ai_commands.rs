@@ -4,6 +4,8 @@ use serde_json::json;
 use std::fs;
 use std::path::PathBuf;
 use tauri::{AppHandle, Emitter};
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 
 // ---------------------------------------------------------------------------
 // Config: ~/.folio/ai-config.json
@@ -40,21 +42,56 @@ fn config_path() -> PathBuf {
     dir.join("ai-config.json")
 }
 
-#[tauri::command]
-pub async fn load_ai_config() -> Result<String, String> {
+/// Internal helper — returns the full config including the real API key.
+/// Never expose this to the frontend.
+pub fn load_ai_config_internal() -> AiConfig {
     let path = config_path();
     if path.exists() {
-        fs::read_to_string(&path).map_err(|e| e.to_string())
+        fs::read_to_string(&path)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default()
     } else {
-        let default = AiConfig::default();
-        serde_json::to_string_pretty(&default).map_err(|e| e.to_string())
+        AiConfig::default()
     }
+}
+
+/// Frontend-safe view of AI config — API key is replaced with a boolean indicator.
+#[tauri::command]
+pub async fn load_ai_config() -> Result<String, String> {
+    let cfg = load_ai_config_internal();
+    let public = serde_json::json!({
+        "provider": cfg.provider,
+        "has_api_key": !cfg.api_key.is_empty(),
+        "model": cfg.model,
+        "ghost_enabled": cfg.ghost_enabled,
+        "ghost_model": cfg.ghost_model,
+    });
+    serde_json::to_string_pretty(&public).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn save_ai_config(config_json: String) -> Result<(), String> {
     let path = config_path();
-    fs::write(&path, &config_json).map_err(|e| e.to_string())
+    // If the payload omits api_key, preserve the one already stored on disk.
+    let mut incoming: serde_json::Value =
+        serde_json::from_str(&config_json).map_err(|e| e.to_string())?;
+    if incoming.get("api_key").is_none() {
+        let existing = load_ai_config_internal();
+        if !existing.api_key.is_empty() {
+            incoming["api_key"] = serde_json::Value::String(existing.api_key);
+        }
+    }
+    let merged = serde_json::to_string_pretty(&incoming).map_err(|e| e.to_string())?;
+    fs::write(&path, &merged).map_err(|e| e.to_string())?;
+    #[cfg(unix)]
+    {
+        let _ = fs::set_permissions(&path, fs::Permissions::from_mode(0o600));
+        if let Some(parent) = path.parent() {
+            let _ = fs::set_permissions(parent, fs::Permissions::from_mode(0o700));
+        }
+    }
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -156,15 +193,7 @@ struct OpenAiErrorDetail {
 
 #[tauri::command]
 pub async fn ai_chat(messages: Vec<ChatMessage>, context: Option<String>) -> Result<String, String> {
-    let config: AiConfig = {
-        let path = config_path();
-        if path.exists() {
-            let json = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-            serde_json::from_str(&json).unwrap_or_default()
-        } else {
-            AiConfig::default()
-        }
-    };
+    let config = load_ai_config_internal();
 
     if config.api_key.is_empty() {
         return Err("API key not configured. Please set it in Settings → AI.".into());
@@ -292,15 +321,7 @@ async fn chat_openai(config: &AiConfig, messages: &[ChatMessage], context: Optio
 // ---------------------------------------------------------------------------
 
 fn load_config() -> AiConfig {
-    let path = config_path();
-    if path.exists() {
-        fs::read_to_string(&path)
-            .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default()
-    } else {
-        AiConfig::default()
-    }
+    load_ai_config_internal()
 }
 
 fn build_system_with_context(context: Option<String>, override_system: Option<String>) -> Option<String> {
