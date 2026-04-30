@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect, useState, useRef } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { getMonacoEditorRef } from './Toolbar';
 import { Hash } from 'lucide-react';
@@ -15,7 +15,6 @@ function parseMarkdownHeadings(content: string): Heading[] {
   let inCodeBlock = false;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    // Skip fenced code blocks
     if (/^```/.test(line)) {
       inCodeBlock = !inCodeBlock;
       continue;
@@ -40,9 +39,60 @@ export function TocPanel() {
     return parseMarkdownHeadings(activeTab.content);
   }, [activeTab?.content, activeTab?.language]);
 
+  // 현재 에디터 커서 줄 번호 추적
+  const [currentLine, setCurrentLine] = useState(1);
+  const disposableRef = useRef<{ dispose: () => void } | null>(null);
+  const activeItemRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const attach = () => {
+      const editor = getMonacoEditorRef();
+      if (!editor) return false;
+      disposableRef.current?.dispose();
+      disposableRef.current = editor.onDidChangeCursorPosition(e => {
+        setCurrentLine(e.position.lineNumber);
+      });
+      // 스크롤 변경 시에도 갱신 (스크롤만 할 때 커서는 안 움직일 수 있음)
+      const scrollDisposable = editor.onDidScrollChange(() => {
+        const pos = editor.getPosition();
+        if (pos) setCurrentLine(pos.lineNumber);
+      });
+      const orig = disposableRef.current.dispose.bind(disposableRef.current);
+      disposableRef.current = {
+        dispose: () => { orig(); scrollDisposable.dispose(); },
+      };
+      return true;
+    };
+
+    if (!attach()) {
+      // 에디터가 아직 마운트 전이면 잠시 후 재시도
+      const timer = setTimeout(attach, 500);
+      return () => clearTimeout(timer);
+    }
+    return () => disposableRef.current?.dispose();
+  }, [activeTabId]);
+
+  // 현재 줄에서 가장 가까운(이전) 헤딩 인덱스
+  const activeIdx = useMemo(() => {
+    if (headings.length === 0) return -1;
+    let idx = -1;
+    for (let i = 0; i < headings.length; i++) {
+      if (headings[i].line <= currentLine) idx = i;
+      else break;
+    }
+    return idx;
+  }, [headings, currentLine]);
+
+  // 활성 항목이 TOC 뷰포트 안에 보이도록 스크롤
+  useEffect(() => {
+    activeItemRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [activeIdx]);
+
   const textMuted = theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400';
   const hoverBg = theme === 'dark' ? 'hover:bg-zinc-700/50' : 'hover:bg-zinc-100';
   const text = theme === 'dark' ? 'text-zinc-200' : 'text-zinc-800';
+  const activeBg = theme === 'dark' ? 'bg-blue-500/15 text-blue-300' : 'bg-blue-50 text-blue-700';
+  const activeBorder = theme === 'dark' ? 'border-l-2 border-blue-400' : 'border-l-2 border-blue-500';
 
   const handleClick = (line: number) => {
     const editor = getMonacoEditorRef();
@@ -65,19 +115,25 @@ export function TocPanel() {
 
   return (
     <div className="h-full overflow-y-auto py-1">
-      {headings.map((h, idx) => (
-        <div
-          key={idx}
-          onClick={() => handleClick(h.line)}
-          className={`flex items-center gap-1.5 px-3 py-1 text-xs cursor-pointer ${hoverBg} ${text}`}
-          style={{ paddingLeft: `${8 + (h.level - 1) * 12}px` }}
-          title={`Line ${h.line}`}
-        >
-          <Hash size={10} className={`shrink-0 ${textMuted}`} />
-          <span className="truncate">{h.text}</span>
-          <span className={`ml-auto text-[10px] ${textMuted}`}>{h.line}</span>
-        </div>
-      ))}
+      {headings.map((h, idx) => {
+        const isActive = idx === activeIdx;
+        return (
+          <div
+            key={idx}
+            ref={isActive ? activeItemRef : null}
+            onClick={() => handleClick(h.line)}
+            className={`flex items-center gap-1.5 px-3 py-1 text-xs cursor-pointer transition-colors ${
+              isActive ? `${activeBg} ${activeBorder}` : `${hoverBg} ${text}`
+            }`}
+            style={{ paddingLeft: `${(isActive ? 6 : 8) + (h.level - 1) * 12}px` }}
+            title={`Line ${h.line}`}
+          >
+            <Hash size={10} className={`shrink-0 ${isActive ? 'opacity-80' : textMuted}`} />
+            <span className="truncate font-medium">{h.text}</span>
+            <span className={`ml-auto text-[10px] ${isActive ? 'opacity-60' : textMuted}`}>{h.line}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }

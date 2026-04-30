@@ -183,16 +183,49 @@ function makeCodeComponents(theme: 'dark' | 'light'): Components {
       }
 
       return (
-        <div className="md-code-block">
+        <div className="md-code-block" style={{ borderRadius: 10, overflow: 'hidden', margin: '1em 0' }}>
           <span className="md-code-lang">{lang}</span>
           <CopyButton getText={() => raw} />
-          <pre>
+          <pre style={{ margin: 0, padding: '2em 0 1em 0', borderRadius: 0, overflowX: 'auto' }}>
             <HighlightedCode lang={lang} raw={raw} className={`hljs language-${lang}`} />
           </pre>
         </div>
       );
     },
   };
+}
+
+// ─── Lightbox ────────────────────────────────────────────────────────────────
+
+function Lightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <button
+        className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors"
+        onClick={onClose}
+        title="닫기 (Esc)"
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+      <img
+        src={src}
+        alt={alt}
+        onClick={e => e.stopPropagation()}
+        style={{ maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 8, boxShadow: '0 8px 40px rgba(0,0,0,0.6)' }}
+      />
+    </div>
+  );
 }
 
 // ─── MarkdownPreview ─────────────────────────────────────────────────────────
@@ -205,6 +238,7 @@ interface MarkdownPreviewProps {
 export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
   function MarkdownPreview({ content, filePath }, ref) {
     const theme = useAppStore(s => s.settings.theme);
+    const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
 
     const [debouncedContent, setDebouncedContent] = useState(content);
     useEffect(() => {
@@ -217,26 +251,45 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
       [debouncedContent, filePath],
     );
 
-    const components = useMemo(() => makeCodeComponents(theme), [theme]);
+    const components = useMemo(() => ({
+      ...makeCodeComponents(theme),
+      img({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) {
+        return (
+          <img
+            src={src}
+            alt={alt ?? ''}
+            {...props}
+            style={{ maxWidth: '100%', cursor: 'zoom-in' }}
+            onClick={() => src && setLightbox({ src, alt: alt ?? '' })}
+            title="클릭하여 확대"
+          />
+        );
+      },
+    }), [theme]);
 
     const isLight = theme === 'light';
 
     return (
-      <div
-        ref={ref}
-        className={`h-full overflow-y-auto p-6 ${isLight ? 'bg-white text-zinc-800' : 'bg-zinc-800 text-zinc-200'}`}
-      >
-        <div className={`max-w-3xl mx-auto markdown-body ${isLight ? 'markdown-preview-light' : ''}`}>
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm, remarkMath]}
-            rehypePlugins={[rehypeRaw, rehypeHighlight, rehypeKatex]}
-            urlTransform={(url) => url}
-            components={components}
-          >
-            {processed}
-          </ReactMarkdown>
+      <>
+        <div
+          ref={ref}
+          className={`h-full overflow-y-auto p-6 ${isLight ? 'bg-white text-zinc-800' : 'bg-zinc-800 text-zinc-200'}`}
+        >
+          <div className={`max-w-3xl mx-auto markdown-body ${isLight ? 'markdown-preview-light' : ''}`}>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm, remarkMath]}
+              rehypePlugins={[rehypeRaw, rehypeHighlight, rehypeKatex]}
+              urlTransform={(url) => url}
+              components={components}
+            >
+              {processed}
+            </ReactMarkdown>
+          </div>
         </div>
-      </div>
+        {lightbox && (
+          <Lightbox src={lightbox.src} alt={lightbox.alt} onClose={() => setLightbox(null)} />
+        )}
+      </>
     );
   },
 );
