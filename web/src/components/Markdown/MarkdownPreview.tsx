@@ -140,13 +140,14 @@ function CopyButton({ getText }: { getText: () => string }) {
 
 function makeCodeComponents(theme: 'dark' | 'light'): Components {
   return {
+    // react-markdown v10: code 컴포넌트는 인라인/블록 모두 같은 컴포넌트로 전달됨.
+    // language-* className 유무로 구분 (블록 펜스에만 붙음).
     code({ className, children, ...props }) {
-      const isBlock = 'node' in props && (props as { node?: { type?: string } }).node?.type !== undefined;
       const lang = /language-(\w+)/.exec(className ?? '')?.[1] ?? '';
       const raw = String(children).replace(/\n$/, '');
 
-      // inline code — no wrapper needed
-      if (!lang && !isBlock) {
+      // inline code — language 클래스 없음
+      if (!lang) {
         return <code className={className} {...props}>{children}</code>;
       }
 
@@ -156,7 +157,7 @@ function makeCodeComponents(theme: 'dark' | 'light'): Components {
 
       return (
         <div className="md-code-block">
-          {lang && <span className="md-code-lang">{lang}</span>}
+          <span className="md-code-lang">{lang}</span>
           <CopyButton getText={() => raw} />
           <pre>
             <code className={className} {...props}>{children}</code>
