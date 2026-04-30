@@ -10,6 +10,7 @@ import {
 } from 'react';
 import type { Components } from 'react-markdown';
 import mermaid from 'mermaid';
+import hljs from 'highlight.js';
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
@@ -136,6 +137,32 @@ function CopyButton({ getText }: { getText: () => string }) {
   );
 }
 
+// ─── Highlighted Code with line numbers ──────────────────────────────────────
+
+function HighlightedCode({ lang, raw, className }: { lang: string; raw: string; className?: string }) {
+  const lines = useMemo(() => {
+    try {
+      const result = hljs.highlight(raw, { language: lang, ignoreIllegals: true });
+      return result.value.split('\n');
+    } catch {
+      return raw.split('\n').map(l =>
+        l.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      );
+    }
+  }, [lang, raw]);
+
+  return (
+    <code className={className}>
+      {lines.map((lineHtml, i) => (
+        <span key={i} className="md-line">
+          <span className="md-line-num">{i + 1}</span>
+          <span className="md-line-code" dangerouslySetInnerHTML={{ __html: lineHtml || ' ' }} />
+        </span>
+      ))}
+    </code>
+  );
+}
+
 // ─── Code Block renderer ─────────────────────────────────────────────────────
 
 function makeCodeComponents(theme: 'dark' | 'light'): Components {
@@ -160,7 +187,7 @@ function makeCodeComponents(theme: 'dark' | 'light'): Components {
           <span className="md-code-lang">{lang}</span>
           <CopyButton getText={() => raw} />
           <pre>
-            <code className={className} {...props}>{children}</code>
+            <HighlightedCode lang={lang} raw={raw} className={`hljs language-${lang}`} />
           </pre>
         </div>
       );
