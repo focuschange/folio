@@ -68,6 +68,10 @@ registerCustomLanguages();
 // editor mount after registration inherits the provider.
 registerGhostText();
 
+// Per-tab view state (scroll + cursor + folding) — keyed by tab ID.
+// Lives outside the component so it survives re-renders and tab switches.
+const viewStateCache = new Map<string, monaco.editor.ICodeEditorViewState>();
+
 export function MonacoWrapper({ tab, onEditorMount }: MonacoWrapperProps) {
   const settings = useAppStore(s => s.settings);
   const updateTabContent = useAppStore(s => s.updateTabContent);
@@ -78,6 +82,7 @@ export function MonacoWrapper({ tab, onEditorMount }: MonacoWrapperProps) {
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
   const decorationsRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const prevTabIdRef = useRef<string>(tab.id);
 
   // Monaco's `automaticLayout` ResizeObserver can miss the window's first
   // resize event(s) on macOS launch, leaving the editor with a stale viewport.
@@ -92,6 +97,29 @@ export function MonacoWrapper({ tab, onEditorMount }: MonacoWrapperProps) {
     window.addEventListener('resize', onWinResize);
     return () => window.removeEventListener('resize', onWinResize);
   }, []);
+
+  // When the active tab changes: save previous tab's view state, restore new tab's.
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    const prevId = prevTabIdRef.current;
+    if (prevId !== tab.id) {
+      // Save outgoing tab
+      const vs = editor.saveViewState();
+      if (vs) viewStateCache.set(prevId, vs);
+      prevTabIdRef.current = tab.id;
+    }
+
+    // Restore incoming tab after Monaco has applied the new content.
+    // rAF ensures the model swap (value prop change) has settled first.
+    requestAnimationFrame(() => {
+      const saved = viewStateCache.get(tab.id);
+      if (saved) {
+        try { editor.restoreViewState(saved); } catch { /* disposed */ }
+      }
+    });
+  }, [tab.id]);
 
   const handleMount: OnMount = useCallback((editor) => {
     editorRef.current = editor;
