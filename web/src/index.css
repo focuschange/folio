@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "highlight.js/styles/github-dark.css";
 
 @font-face {
   font-family: 'JetBrains Mono';
@@ -176,14 +177,109 @@ html, body, #root {
 .markdown-body ul, .markdown-body ol { padding-left: 2em; margin: 0.5em 0; }
 .markdown-body li { margin: 0.25em 0; }
 .markdown-body blockquote { border-left: 4px solid #3b82f6; padding: 0.5em 1em; margin: 0.5em 0; opacity: 0.9; }
-.markdown-body pre { border-radius: 6px; padding: 1em; overflow-x: auto; margin: 0.5em 0; }
+.markdown-body pre { border-radius: 6px; overflow-x: auto; margin: 0.5em 0; padding: 0; }
 .markdown-body code { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 0.9em; }
+.markdown-body :not(pre) > code { background: rgba(127,127,127,0.15); padding: 0.15em 0.35em; border-radius: 3px; }
 .markdown-body table { border-collapse: collapse; width: 100%; margin: 0.5em 0; }
 .markdown-body th, .markdown-body td { border: 1px solid #3f3f46; padding: 0.5em 1em; text-align: left; }
 .markdown-body th { font-weight: 600; }
 .markdown-body img { max-width: 100%; }
 .markdown-body a { color: #3b82f6; text-decoration: underline; }
 .markdown-body hr { border: none; border-top: 1px solid #3f3f46; margin: 1.5em 0; }
+
+/* Code block wrapper */
+.md-code-block {
+  position: relative;
+  margin: 0.5em 0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.md-code-block pre {
+  margin: 0;
+  padding: 1em 1em 1em 1em;
+  border-radius: 0;
+}
+.md-code-lang {
+  position: absolute;
+  top: 0.4em;
+  left: 0.75em;
+  font-size: 0.72em;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  color: rgba(180,180,180,0.7);
+  pointer-events: none;
+  user-select: none;
+  text-transform: lowercase;
+}
+.md-code-copy {
+  position: absolute;
+  top: 0.4em;
+  right: 0.5em;
+  display: flex;
+  align-items: center;
+  gap: 0.25em;
+  padding: 0.2em 0.55em;
+  border-radius: 4px;
+  font-size: 0.72em;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  border: 1px solid rgba(127,127,127,0.3);
+  background: rgba(0,0,0,0.25);
+  color: rgba(200,200,200,0.85);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 150ms, background 150ms;
+}
+.md-code-block:hover .md-code-copy { opacity: 1; }
+.md-code-copy:hover { background: rgba(0,0,0,0.45); }
+.md-code-copy.copied { color: #4ade80; border-color: #4ade80; }
+
+/* Light mode: override hljs theme (github-dark → github) */
+.markdown-preview-light .hljs {
+  background: #f6f8fa;
+  color: #24292e;
+}
+.markdown-preview-light .hljs-doctag,
+.markdown-preview-light .hljs-keyword,
+.markdown-preview-light .hljs-meta .hljs-keyword,
+.markdown-preview-light .hljs-template-tag,
+.markdown-preview-light .hljs-template-variable,
+.markdown-preview-light .hljs-type,
+.markdown-preview-light .hljs-variable.language_ { color: #d73a49; }
+.markdown-preview-light .hljs-title,
+.markdown-preview-light .hljs-title.class_,
+.markdown-preview-light .hljs-title.class_.inherited__,
+.markdown-preview-light .hljs-title.function_ { color: #6f42c1; }
+.markdown-preview-light .hljs-attr,
+.markdown-preview-light .hljs-attribute,
+.markdown-preview-light .hljs-literal,
+.markdown-preview-light .hljs-meta,
+.markdown-preview-light .hljs-number,
+.markdown-preview-light .hljs-operator,
+.markdown-preview-light .hljs-selector-attr,
+.markdown-preview-light .hljs-selector-class,
+.markdown-preview-light .hljs-selector-id,
+.markdown-preview-light .hljs-variable { color: #005cc5; }
+.markdown-preview-light .hljs-string,
+.markdown-preview-light .hljs-meta .hljs-string { color: #032f62; }
+.markdown-preview-light .hljs-built_in,
+.markdown-preview-light .hljs-symbol { color: #e36209; }
+.markdown-preview-light .hljs-comment,
+.markdown-preview-light .hljs-code,
+.markdown-preview-light .hljs-formula { color: #6a737d; }
+.markdown-preview-light .hljs-name,
+.markdown-preview-light .hljs-quote,
+.markdown-preview-light .hljs-selector-pseudo,
+.markdown-preview-light .hljs-selector-tag { color: #22863a; }
+.markdown-preview-light .hljs-subst { color: #24292e; }
+.markdown-preview-light .hljs-section { color: #005cc5; font-weight: bold; }
+.markdown-preview-light .hljs-bullet { color: #735c0f; }
+.markdown-preview-light .hljs-emphasis { color: #24292e; font-style: italic; }
+.markdown-preview-light .hljs-strong { color: #24292e; font-weight: bold; }
+.markdown-preview-light .hljs-addition { color: #22863a; background-color: #f0fff4; }
+.markdown-preview-light .hljs-deletion { color: #b31d28; background-color: #ffeef0; }
+.markdown-preview-light .md-code-copy { background: rgba(246,248,250,0.8); color: #57606a; border-color: #d0d7de; }
+.markdown-preview-light .md-code-copy:hover { background: #e6ebf0; }
+.markdown-preview-light .md-code-copy.copied { color: #1a7f37; border-color: #1a7f37; }
+.markdown-preview-light .md-code-lang { color: rgba(100,100,100,0.7); }
 
 /* KaTeX */
 .katex-display { overflow-x: auto; }
