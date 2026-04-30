@@ -26,10 +26,10 @@ web/dist/
 web/src-tauri/target/
 web/src-tauri/.cargo/
 
-# Root level (stray npm artifacts)
+# Root level (stray npm artifacts) — anchored so web/package.json etc. are not ignored
 node_modules/
-package-lock.json
-package.json
+/package-lock.json
+/package.json
 
 # Claude Code local workspace (tool permissions, plans, memory)
 .claude/
