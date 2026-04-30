@@ -165,13 +165,25 @@ function HighlightedCode({ lang, raw, className }: { lang: string; raw: string; 
 
 // ─── Code Block renderer ─────────────────────────────────────────────────────
 
+// rehypeHighlight가 children을 React 노드 트리로 변환하므로 텍스트를 재귀 추출
+function extractText(node: unknown): string {
+  if (typeof node === 'string') return node;
+  if (Array.isArray(node)) return node.map(extractText).join('');
+  if (node && typeof node === 'object' && 'props' in (node as object)) {
+    const el = node as { props?: { children?: unknown } };
+    return extractText(el.props?.children);
+  }
+  return '';
+}
+
 function makeCodeComponents(theme: 'dark' | 'light'): Components {
   return {
     // react-markdown v10: code 컴포넌트는 인라인/블록 모두 같은 컴포넌트로 전달됨.
     // language-* className 유무로 구분 (블록 펜스에만 붙음).
     code({ className, children, ...props }) {
       const lang = /language-(\w+)/.exec(className ?? '')?.[1] ?? '';
-      const raw = String(children).replace(/\n$/, '');
+      // rehypeHighlight가 children을 파싱된 노드로 넘기므로 텍스트 재귀 추출
+      const raw = extractText(children).replace(/\n$/, '');
 
       // inline code — language 클래스 없음
       if (!lang) {

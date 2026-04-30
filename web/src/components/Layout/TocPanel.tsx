@@ -49,18 +49,20 @@ export function TocPanel() {
       const editor = getMonacoEditorRef();
       if (!editor) return false;
       disposableRef.current?.dispose();
-      disposableRef.current = editor.onDidChangeCursorPosition(e => {
-        setCurrentLine(e.position.lineNumber);
-      });
-      // 스크롤 변경 시에도 갱신 (스크롤만 할 때 커서는 안 움직일 수 있음)
-      const scrollDisposable = editor.onDidScrollChange(() => {
-        const pos = editor.getPosition();
-        if (pos) setCurrentLine(pos.lineNumber);
-      });
-      const orig = disposableRef.current.dispose.bind(disposableRef.current);
-      disposableRef.current = {
-        dispose: () => { orig(); scrollDisposable.dispose(); },
+
+      const update = () => {
+        // Use the first visible line so TOC tracks what's actually on screen.
+        const ranges = editor.getVisibleRanges();
+        if (ranges.length > 0) setCurrentLine(ranges[0].startLineNumber);
       };
+
+      const cursorDisposable = editor.onDidChangeCursorPosition(update);
+      const scrollDisposable = editor.onDidScrollChange(update);
+      disposableRef.current = {
+        dispose: () => { cursorDisposable.dispose(); scrollDisposable.dispose(); },
+      };
+      // Set initial value immediately
+      update();
       return true;
     };
 
