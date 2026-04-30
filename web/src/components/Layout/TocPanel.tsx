@@ -44,10 +44,18 @@ export function TocPanel() {
   const activeItemRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    const attach = () => {
+    disposableRef.current?.dispose();
+    disposableRef.current = null;
+    setCurrentLine(1);
+
+    let rafId: number;
+
+    const tryAttach = () => {
       const editor = getMonacoEditorRef();
-      if (!editor) return false;
-      disposableRef.current?.dispose();
+      if (!editor) {
+        rafId = requestAnimationFrame(tryAttach);
+        return;
+      }
 
       const update = () => {
         const ranges = editor.getVisibleRanges();
@@ -60,14 +68,15 @@ export function TocPanel() {
         dispose: () => { cursorDisposable.dispose(); scrollDisposable.dispose(); },
       };
       update();
-      return true;
     };
 
-    if (!attach()) {
-      const timer = setTimeout(attach, 500);
-      return () => clearTimeout(timer);
-    }
-    return () => disposableRef.current?.dispose();
+    rafId = requestAnimationFrame(tryAttach);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      disposableRef.current?.dispose();
+      disposableRef.current = null;
+    };
   }, [activeTabId]);
 
   const activeIdx = useMemo(() => {
