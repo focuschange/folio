@@ -666,7 +666,7 @@ function SortableRoot({
 }) {
   const dragId = encodeDragId({ kind: 'root-drag', index: rootIndex });
   const {
-    attributes, listeners, setNodeRef, transform, transition, isDragging,
+    attributes, listeners, setNodeRef, transform, transition,
   } = useSortable({ id: dragId, data: { kind: 'root-drag', index: rootIndex } });
 
   // Drop indicator (thin blue line) — sourced from the DndContext directly so it
