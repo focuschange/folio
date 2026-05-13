@@ -30,7 +30,7 @@ function App() {
   useTheme();
   useSettings();
   useSession();
-  const { loadDirectory, openFolder, writeFile, openFileFromDialog } = useFileSystem();
+  const { loadDirectory, openFolder, writeFile, openFileFromDialog, openFileInEditor } = useFileSystem();
 
   useEffect(() => {
     const isTauri = '__TAURI_INTERNALS__' in window;
@@ -38,6 +38,54 @@ function App() {
       loadDirectory('/project');
     }
   }, [loadDirectory]);
+
+  // External file drag&drop (#122) — Finder → Folio.
+  // Tauri v2 macOS WKWebView intercepts native drag&drop when
+  // `dragDropEnabled: true`. Internal DnD is pointer-event based (#123),
+  // so the two coexist without conflict.
+  useEffect(() => {
+    const isTauri = '__TAURI_INTERNALS__' in window;
+    if (!isTauri) return;
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { getCurrentWebview } = await import('@tauri-apps/api/webview');
+        const { invoke } = await import('@tauri-apps/api/core');
+        const fn = await getCurrentWebview().onDragDropEvent(async (event) => {
+          // payload shapes: { type: 'enter'|'over'|'drop'|'leave', paths?: string[], position?: {x,y} }
+          const payload = event.payload as { type: string; paths?: string[] };
+          if (payload.type !== 'drop' || !payload.paths || payload.paths.length === 0) return;
+          for (const p of payload.paths) {
+            try {
+              const info = await invoke<{ is_dir: boolean; is_file: boolean; name: string }>(
+                'get_file_info',
+                { path: p },
+              );
+              if (info.is_dir) {
+                await loadDirectory(p);
+              } else if (info.is_file) {
+                await openFileInEditor(p, info.name);
+              }
+            } catch (err) {
+              console.error('[drop] failed to handle path', p, err);
+            }
+          }
+        });
+        if (cancelled) {
+          fn();
+        } else {
+          unlisten = fn;
+        }
+      } catch (err) {
+        console.error('[drop] failed to register webview drag-drop listener:', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [loadDirectory, openFileInEditor]);
 
   const openFolderRef = useRef(openFolder);
   const writeFileRef = useRef(writeFile);
