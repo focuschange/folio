@@ -1,10 +1,14 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import type { DragStartEvent } from '@dnd-kit/core';
+import { decodeDragId } from './hooks/useGlobalDnD';
 import { MainLayout } from './components/Layout/MainLayout';
 import { useTheme } from './hooks/useTheme';
 import { useSettings } from './hooks/useSettings';
 import { useSession } from './hooks/useSession';
 import { useFileSystem } from './hooks/useFileSystem';
 import { useAppStore } from './store/useAppStore';
+import { useGlobalDnD } from './hooks/useGlobalDnD';
 
 // Action IDs — must match Rust menu item IDs
 type ActionId =
@@ -450,7 +454,70 @@ function App() {
     };
   }, []);
 
-  return <MainLayout />;
+  return <AppShell />;
+}
+
+function AppShell() {
+  // PointerSensor with a small activation distance so plain clicks don't accidentally
+  // start drags. KeyboardSensor is intentionally omitted for now — drag operations
+  // are pointer-driven; can be added later if accessibility requires.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+  );
+  const { onDragStart: onGlobalDragStart, onDragEnd: onGlobalDragEnd, onDragCancel: onGlobalDragCancel } = useGlobalDnD();
+
+  // Track active drag for DragOverlay (which renders a follow-the-cursor preview
+  // independently of the source element — needed for cross-container drags like
+  // tab → file tree, where the source's transform context doesn't span both).
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+
+  const handleDragStart = (e: DragStartEvent) => {
+    setActiveDragId(e.active.id as string);
+    onGlobalDragStart(e);
+  };
+  const clearActive = () => setActiveDragId(null);
+
+  return (
+    <DndContext
+      sensors={sensors}
+      onDragStart={handleDragStart}
+      onDragEnd={(e) => { clearActive(); onGlobalDragEnd(e); }}
+      onDragCancel={() => { clearActive(); onGlobalDragCancel(); }}
+    >
+      <MainLayout />
+      <DragOverlay dropAnimation={null}>
+        {activeDragId ? <DragPreview id={activeDragId} /> : null}
+      </DragOverlay>
+    </DndContext>
+  );
+}
+
+// Render a faithful, theme-aware preview of whatever is being dragged.
+// Cloning the actual DOM element via `document.querySelector` would copy all
+// styles but break event handlers / refs; instead we look up the underlying
+// data and reproduce just the visual essence (icon + name).
+function DragPreview({ id }: { id: string }) {
+  const d = decodeDragId(id);
+  const theme = useAppStore(s => s.settings.theme);
+  if (!d) return null;
+
+  const bg = theme === 'dark' ? 'bg-zinc-800 border-zinc-600' : 'bg-white border-zinc-300';
+  const text = theme === 'dark' ? 'text-zinc-100' : 'text-zinc-800';
+  const wrapClass = `px-3 py-1 rounded-md shadow-lg border ${bg} ${text} pointer-events-none flex items-center gap-1.5 text-xs whitespace-nowrap`;
+
+  if (d.kind === 'tab') {
+    const tab = useAppStore.getState().tabs.find(t => t.id === d.tabId);
+    if (!tab) return null;
+    return <div className={wrapClass}>📄 {tab.name}{tab.dirty ? ' •' : ''}</div>;
+  }
+  if (d.kind === 'tree') {
+    const name = d.path.split('/').pop() ?? d.path;
+    return <div className={wrapClass}>📁 {name}</div>;
+  }
+  // root-drag
+  const root = useAppStore.getState().projectRoots[d.index];
+  const name = root?.split('/').pop() ?? '프로젝트';
+  return <div className={wrapClass}>📁 {name}</div>;
 }
 
 export default App;
