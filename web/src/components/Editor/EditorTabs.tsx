@@ -2,9 +2,12 @@ import { useState, useRef, useEffect } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { FileIcon } from '../../utils/fileIcons';
 import { X, Pin, ChevronRight, Check, AlertTriangle } from 'lucide-react';
-import { setCurrentDrag, clearCurrentDrag } from '../../utils/dragState';
 import { COMMON_ENCODINGS } from '../../utils/encodings';
 import { ALL_LANGUAGES } from '../../utils/languages';
+import { SortableContext, useSortable, horizontalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { encodeDragId } from '../../hooks/useGlobalDnD';
+import type { EditorTab } from '../../types';
 
 type SubMenuKind = 'encoding' | 'language' | null;
 
@@ -17,11 +20,9 @@ export function EditorTabs() {
   const pinTab = useAppStore(s => s.pinTab);
   const unpinTab = useAppStore(s => s.unpinTab);
   const closeOtherTabs = useAppStore(s => s.closeOtherTabs);
-  const reorderTabs = useAppStore(s => s.reorderTabs);
   const setTabEncoding = useAppStore(s => s.setTabEncoding);
   const setTabLanguage = useAppStore(s => s.setTabLanguage);
 
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tabId: string } | null>(null);
   const [subMenu, setSubMenu] = useState<{ kind: SubMenuKind; x: number; y: number }>({ kind: null, x: 0, y: 0 });
   const [hoverTooltip, setHoverTooltip] = useState<{ tabId: string; x: number } | null>(null);
@@ -48,31 +49,6 @@ export function EditorTabs() {
     e.preventDefault();
     setContextMenu({ x: e.clientX, y: e.clientY, tabId });
     setSubMenu({ kind: null, x: 0, y: 0 });
-  };
-
-  const handleDragStart = (e: React.DragEvent, index: number, tabId: string, tabName: string) => {
-    setDragIndex(index);
-    // Track the tab via a module-level singleton so external drop targets (FileTree) can read it
-    // even when the webview hides custom MIME types during `dragover`.
-    setCurrentDrag({ kind: 'tab', tabId });
-    // Setting plain-text data ensures the native drag actually initiates in webviews that
-    // require some setData call (no effectAllowed — that conflicts with default copy in some webviews).
-    try {
-      e.dataTransfer.setData('text/plain', tabName);
-    } catch {
-      // dataTransfer may be locked in some browsers — fall back silently
-    }
-  };
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    if (dragIndex !== null && dragIndex !== index) {
-      reorderTabs(dragIndex, index);
-      setDragIndex(index);
-    }
-  };
-  const handleDragEnd = () => {
-    setDragIndex(null);
-    clearCurrentDrag();
   };
 
   if (tabs.length === 0) return null;
@@ -114,48 +90,29 @@ export function EditorTabs() {
         className={`folio-autohide-scrollbar flex items-end overflow-x-auto border-b ${border} select-none shrink-0`}
         style={{ scrollbarWidth: 'thin' }}
       >
-        {tabs.map((tab, index) => {
-          const isActive = tab.id === activeTabId;
-          return (
-            <div
+        <SortableContext
+          items={tabs.map(t => encodeDragId({ kind: 'tab', tabId: t.id }))}
+          strategy={horizontalListSortingStrategy}
+        >
+          {tabs.map((tab, index) => (
+            <SortableTab
               key={tab.id}
-              data-tab-id={tab.id}
-              draggable
-              onDragStart={(e) => handleDragStart(e, index, tab.id, tab.name)}
-              onDragOver={(e) => handleDragOver(e, index)}
-              onDragEnd={handleDragEnd}
-              onClick={() => setActiveTab(tab.id)}
+              tab={tab}
+              index={index}
+              isActive={tab.id === activeTabId}
+              theme={theme}
+              activeBg={activeBg}
+              inactiveBg={inactiveBg}
+              hoverBg={hoverBg}
+              border={border}
+              onActivate={() => setActiveTab(tab.id)}
               onContextMenu={(e) => handleContextMenu(e, tab.id)}
-              onMouseEnter={(e) => setHoverTooltip({ tabId: tab.id, x: e.clientX })}
-              onMouseLeave={() => setHoverTooltip(null)}
-              className={`group flex items-center gap-1.5 px-3 py-1.5 text-xs cursor-pointer border-r ${border} transition-colors ${
-                isActive
-                  ? `${activeBg} border-t-2 border-t-blue-500`
-                  : `${inactiveBg} ${hoverBg} border-t-2 border-t-transparent`
-              }`}
-              style={{ minWidth: 'fit-content', maxWidth: '180px' }}
-            >
-              {tab.pinned && <Pin size={12} className="text-blue-400 shrink-0" />}
-              {tab.missing
-                ? <AlertTriangle size={14} className="text-amber-500 shrink-0" />
-                : <FileIcon name={tab.name} size={14} />}
-              <span className={`truncate ${tab.missing ? 'line-through text-amber-500' : ''}`}>
-                {tab.dirty && <span className="text-blue-400">* </span>}
-                {tab.name}
-              </span>
-              {!tab.pinned && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
-                  className={`ml-1 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ${
-                    theme === 'dark' ? 'hover:bg-zinc-600' : 'hover:bg-zinc-300'
-                  }`}
-                >
-                  <X size={12} />
-                </button>
-              )}
-            </div>
-          );
-        })}
+              onShowTooltip={(x) => setHoverTooltip({ tabId: tab.id, x })}
+              onHideTooltip={() => setHoverTooltip(null)}
+              onClose={() => closeTab(tab.id)}
+            />
+          ))}
+        </SortableContext>
       </div>
 
       {/* Tooltip */}
@@ -284,3 +241,84 @@ export function EditorTabs() {
     </div>
   );
 }
+
+// Single tab cell wired up with @dnd-kit/sortable.
+// - Drag handle = entire row (whole row activates drag once pointer moves >4px).
+// - We register an INVISIBLE droppable slot on the LEFT edge so dropping right
+//   before this tab inserts at this tab's index. The last tab's right-edge slot
+//   is rendered separately in the parent (after the loop) — covered by `tab-slot:tabs.length`.
+function SortableTab({
+  tab, index, isActive, theme, activeBg, inactiveBg, hoverBg, border,
+  onActivate, onContextMenu, onShowTooltip, onHideTooltip, onClose,
+}: {
+  tab: EditorTab;
+  index: number;
+  isActive: boolean;
+  theme: string;
+  activeBg: string;
+  inactiveBg: string;
+  hoverBg: string;
+  border: string;
+  onActivate: () => void;
+  onContextMenu: (e: React.MouseEvent) => void;
+  onShowTooltip: (x: number) => void;
+  onHideTooltip: () => void;
+  onClose: () => void;
+}) {
+  const dragId = encodeDragId({ kind: 'tab', tabId: tab.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: dragId,
+    // The sortable slot ID we register on the wrapper acts as both drag id and drop slot id;
+    // @dnd-kit/sortable uses the same id for both, and the SortableContext maps cross-item
+    // hovers to reorder events that bubble up through our DragEndEvent.
+    data: { kind: 'tab', index },
+  });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    minWidth: 'fit-content',
+    maxWidth: '180px',
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      data-tab-id={tab.id}
+      style={style}
+      {...attributes}
+      {...listeners}
+      onClick={onActivate}
+      onContextMenu={onContextMenu}
+      onMouseEnter={(e) => onShowTooltip(e.clientX)}
+      onMouseLeave={onHideTooltip}
+      className={`group flex items-center gap-1.5 px-3 py-1.5 text-xs cursor-pointer border-r ${border} transition-colors ${
+        isActive
+          ? `${activeBg} border-t-2 border-t-blue-500`
+          : `${inactiveBg} ${hoverBg} border-t-2 border-t-transparent`
+      }`}
+    >
+      {tab.pinned && <Pin size={12} className="text-blue-400 shrink-0" />}
+      {tab.missing
+        ? <AlertTriangle size={14} className="text-amber-500 shrink-0" />
+        : <FileIcon name={tab.name} size={14} />}
+      <span className={`truncate ${tab.missing ? 'line-through text-amber-500' : ''}`}>
+        {tab.dirty && <span className="text-blue-400">* </span>}
+        {tab.name}
+      </span>
+      {!tab.pinned && (
+        <button
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); onClose(); }}
+          className={`ml-1 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ${
+            theme === 'dark' ? 'hover:bg-zinc-600' : 'hover:bg-zinc-300'
+          }`}
+        >
+          <X size={12} />
+        </button>
+      )}
+    </div>
+  );
+}
+

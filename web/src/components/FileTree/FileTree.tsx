@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { useFileSystem } from '../../hooks/useFileSystem';
 import { FileIcon, FolderIcon, isEditableFile } from '../../utils/fileIcons';
@@ -6,23 +6,15 @@ import { ChevronRight, ChevronDown, ChevronLeft, Filter, ChevronsDownUp, Chevron
 import type { FileEntry, EditorTab } from '../../types';
 import { FileTreeContextMenu, type ContextMenuItem } from './FileTreeContextMenu';
 import { PromptDialog } from './PromptDialog';
-import { setCurrentDrag, getCurrentDrag, clearCurrentDrag } from '../../utils/dragState';
-
-interface DragState {
-  setDragOverPath: (path: string | null) => void;
-  dragOverPath: string | null;
-}
+import { useDraggable, useDroppable, useDndContext } from '@dnd-kit/core';
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { encodeDragId, encodeDropId, decodeDragId, decodeDropId } from '../../hooks/useGlobalDnD';
 
 interface OpenContextMenu {
   x: number;
   y: number;
   entry: FileEntry;
-}
-
-// Detect whether `target` is `src` itself or a descendant of `src` (so we can refuse drops onto self/children).
-function isSelfOrDescendant(src: string, target: string): boolean {
-  if (src === target) return true;
-  return target.startsWith(src.endsWith('/') ? src : src + '/');
 }
 
 // Find which project root contains the given path (for refresh after move).
@@ -39,11 +31,6 @@ function joinPath(dir: string, name: string): string {
   return dir.endsWith('/') ? dir + name : dir + '/' + name;
 }
 
-// Thin horizontal line shown between roots to indicate where a root reorder will land.
-function DropIndicator() {
-  return <div className="h-0.5 mx-2 my-px rounded bg-blue-500/80" />;
-}
-
 // Whether this tab's file lives inside one of the project roots.
 function isInsideAnyRoot(path: string, roots: string[]): boolean {
   if (path.startsWith('untitled-')) return false;
@@ -57,15 +44,11 @@ function isInsideAnyRoot(path: string, roots: string[]): boolean {
 function TreeNode({
   entry,
   depth = 0,
-  dragState,
   onContextMenu,
-  onDropOnDir,
 }: {
   entry: FileEntry;
   depth?: number;
-  dragState: DragState;
   onContextMenu: (e: React.MouseEvent, entry: FileEntry) => void;
-  onDropOnDir: (e: React.DragEvent, targetDir: string) => void;
 }) {
   const theme = useAppStore(s => s.settings.theme);
   const expandedDirs = useAppStore(s => s.expandedDirs);
@@ -125,66 +108,45 @@ function TreeNode({
     }
   };
 
-  const handleDragStart = (e: React.DragEvent) => {
-    // Stop bubbling so the multi-root wrapper's dragstart (which reorders project roots)
-    // doesn't also fire when dragging a sub-node.
-    e.stopPropagation();
-    setCurrentDrag({ kind: 'tree', path: entry.path });
-    try {
-      e.dataTransfer.setData('text/plain', entry.path);
-    } catch {
-      // ignore
-    }
-  };
-  const handleDragEndNode = () => clearCurrentDrag();
+  // @dnd-kit — every node is draggable; directories are also droppable.
+  const dragId = encodeDragId({ kind: 'tree', path: entry.path });
+  const {
+    attributes, listeners, setNodeRef: setDragRef, transform, isDragging,
+  } = useDraggable({ id: dragId, data: { kind: 'tree', path: entry.path } });
 
-  const isDragOver = dragState.dragOverPath === entry.path;
-  const dragOverBg = isDragOver
+  const dropId = encodeDropId({ kind: 'dir', path: entry.path });
+  const { setNodeRef: setDropRef, isOver } = useDroppable({
+    id: dropId,
+    disabled: !entry.isDir,
+    data: { kind: 'dir', path: entry.path },
+  });
+
+  // Compose draggable+droppable refs onto the same element.
+  const setNodeRef = (el: HTMLDivElement | null) => {
+    setDragRef(el);
+    setDropRef(el);
+  };
+
+  const dragOverBg = isOver
     ? (theme === 'dark' ? 'bg-blue-900/40' : 'bg-blue-100')
     : '';
 
-  // Directories are drop targets. We always accept dragover (some webviews hide custom
-  // MIMEs during dragover; the actual MIME validation happens in onDrop).
-  const handleDragOver = (e: React.DragEvent) => {
-    if (!entry.isDir) return;
-    const payload = getCurrentDrag();
-    // Always preventDefault so drop will fire — root reorder drags are handled at the
-    // tree-container level, but we still need this element to be a drop target so the
-    // event reaches the container. Skip only the highlight side-effect for root drags.
-    e.preventDefault();
-    if (payload?.kind === 'root') return;
-    e.dataTransfer.dropEffect = 'move';
-    dragState.setDragOverPath(entry.path);
-  };
-
-  const handleDragLeave = () => {
-    if (dragState.dragOverPath === entry.path) dragState.setDragOverPath(null);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    if (!entry.isDir) return;
-    const payload = getCurrentDrag();
-    // Always preventDefault so the browser doesn't perform a default text drop.
-    e.preventDefault();
-    if (payload?.kind === 'root') return; // let the drop bubble to the container
-    e.stopPropagation();
-    dragState.setDragOverPath(null);
-    onDropOnDir(e, entry.path);
+  const style: React.CSSProperties = {
+    paddingLeft: `${depth * 16 + 8}px`,
+    transform: CSS.Translate.toString(transform),
+    opacity: isDragging ? 0.5 : 1,
   };
 
   return (
     <div>
       <div
+        ref={setNodeRef}
         data-tree-path={entry.path}
-        draggable
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEndNode}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
+        {...attributes}
+        {...listeners}
         onContextMenu={(e) => onContextMenu(e, entry)}
         className={`flex items-center gap-1 py-0.5 pr-2 text-sm select-none ${hoverBg} ${selectedBg} ${dragOverBg} ${gitColor} ${openText} transition-colors ${editable ? 'cursor-pointer' : 'cursor-default opacity-40'}`}
-        style={{ paddingLeft: `${depth * 16 + 8}px` }}
+        style={style}
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
       >
@@ -227,9 +189,7 @@ function TreeNode({
                 key={child.path}
                 entry={child}
                 depth={depth + 1}
-                dragState={dragState}
                 onContextMenu={onContextMenu}
-                onDropOnDir={onDropOnDir}
               />
             ))}
         </div>
@@ -241,15 +201,11 @@ function TreeNode({
 function RootHeader({
   entry,
   theme,
-  dragState,
-  onDropOnDir,
   onContextMenu,
   rootIndex,
 }: {
   entry: FileEntry;
   theme: string;
-  dragState: DragState;
-  onDropOnDir: (e: React.DragEvent, targetDir: string) => void;
   onContextMenu: (e: React.MouseEvent, entry: FileEntry) => void;
   rootIndex: number;
 }) {
@@ -259,39 +215,29 @@ function RootHeader({
   const projectRoots = useAppStore(s => s.projectRoots);
   const isExpanded = expandedDirs.has(entry.path);
   const showRemove = projectRoots.length > 1;
-  const isDragOver = dragState.dragOverPath === entry.path;
-  const dragOverBg = isDragOver ? (theme === 'dark' ? 'bg-blue-900/40' : 'bg-blue-100') : '';
 
-  // Accept dragover for file/tab drops INTO this root.
-  const handleDragOver = (e: React.DragEvent) => {
-    const payload = getCurrentDrag();
-    // For root reorder drags we still need to preventDefault so the drop event will
-    // fire (otherwise WebKit treats the default text drop as a navigation/insert).
-    // We only skip the highlight + dropEffect side-effects.
-    e.preventDefault();
-    if (payload?.kind === 'root') return;
-    e.dataTransfer.dropEffect = 'move';
-    dragState.setDragOverPath(entry.path);
-  };
-  const handleDragLeave = () => {
-    if (dragState.dragOverPath === entry.path) dragState.setDragOverPath(null);
-  };
-  const handleDrop = (e: React.DragEvent) => {
-    const payload = getCurrentDrag();
-    // Always preventDefault to suppress the browser's default drop action.
-    e.preventDefault();
-    if (payload?.kind === 'root') return; // let the drop bubble to the container
-    e.stopPropagation();
-    dragState.setDragOverPath(null);
-    onDropOnDir(e, entry.path);
-  };
+  // The root header is droppable (target for tab/tree drops into this root dir).
+  // Root reorder draggable is the parent wrapper (see RootWrapper), not this header.
+  const dropId = encodeDropId({ kind: 'root', path: entry.path, index: rootIndex });
+  const { setNodeRef, isOver } = useDroppable({
+    id: dropId,
+    data: { kind: 'root', path: entry.path, index: rootIndex },
+  });
+
+  // Only show the "drop INTO this root dir" highlight when the dragged item is
+  // a tab or a tree node — NOT when reordering roots themselves (that gets a
+  // thin line indicator at SortableRoot level instead).
+  const { active } = useDndContext();
+  const activeKind = active ? decodeDragId(active.id as string)?.kind : null;
+  const showRootDropHighlight = isOver && activeKind !== 'root-drag';
+  const dragOverBg = showRootDropHighlight
+    ? (theme === 'dark' ? 'bg-blue-900/40' : 'bg-blue-100')
+    : '';
 
   return (
     <div
+      ref={setNodeRef}
       data-root-header={rootIndex}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
       onContextMenu={(e) => onContextMenu(e, entry)}
       className={`flex items-center gap-1 px-2 py-1.5 text-xs font-bold cursor-pointer select-none ${dragOverBg} ${
         theme === 'dark' ? 'text-zinc-300 hover:bg-zinc-800' : 'text-zinc-700 hover:bg-zinc-100'
@@ -330,7 +276,6 @@ export function FileTree() {
   const expandedDirs = useAppStore(s => s.expandedDirs);
   const collapseAllDirs = useAppStore(s => s.collapseAllDirs);
   const expandAllDirs = useAppStore(s => s.expandAllDirs);
-  const reorderProjectRoots = useAppStore(s => s.reorderProjectRoots);
   const resizeSidebar = useAppStore(s => s.resizeSidebar);
   const tabs = useAppStore(s => s.tabs);
   const activeTabId = useAppStore(s => s.activeTabId);
@@ -342,13 +287,6 @@ export function FileTree() {
   const expandToPath = useAppStore(s => s.expandToPath);
 
   const [filter, setFilter] = useState('');
-  const [rootDragIndex, setRootDragIndex] = useState<number | null>(null);
-  // 0..N where N = number of roots (drop AFTER all). null = no active drop target.
-  // Stored as a ref so the drop handler always reads the latest value (the React state
-  // updated by `dragover` may still be batched when `drop` fires immediately after).
-  const rootDropTargetRef = useRef<number | null>(null);
-  const [rootDropTarget, setRootDropTarget] = useState<number | null>(null);
-  const [dragOverPath, setDragOverPath] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<OpenContextMenu | null>(null);
   // In-app prompt dialog (replaces window.prompt which doesn't work in WKWebView).
   const [promptDialog, setPromptDialog] = useState<{
@@ -368,23 +306,6 @@ export function FileTree() {
 
   const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
-  const dragState: DragState = useMemo(() => ({ dragOverPath, setDragOverPath }), [dragOverPath]);
-
-  // --- Window-level safety net for drag cleanup ---
-  // Some webviews don't always fire `dragend` on the source (e.g., when the drag is
-  // cancelled by releasing outside any drop target). Listen on window so root reorder
-  // state is always cleared, preventing stale `rootDragIndex` from corrupting subsequent drags.
-  useEffect(() => {
-    const onDragEnd = () => {
-      setRootDragIndex(null);
-      setRootDropTarget(null);
-      rootDropTargetRef.current = null;
-      clearCurrentDrag();
-    };
-    window.addEventListener('dragend', onDragEnd);
-    return () => window.removeEventListener('dragend', onDragEnd);
-  }, []);
-
   // --- Reveal active tab in tree ---
   // When the active tab changes, expand all ancestor directories so the file
   // becomes visible, mark it as selected, and scroll it into view.
@@ -400,7 +321,7 @@ export function FileTree() {
     // Scroll the matching node into view on the next frame (after expand re-renders).
     const id = window.requestAnimationFrame(() => {
       const node = containerRef.current?.querySelector<HTMLElement>(
-        `[data-tree-path="${CSS.escape(activePath)}"]`,
+        `[data-tree-path="${window.CSS.escape(activePath)}"]`,
       );
       if (node) node.scrollIntoView({ block: 'nearest' });
     });
@@ -428,78 +349,6 @@ export function FileTree() {
       await refreshDirectory(root);
     }
   }, [projectRoots, refreshDirectory]);
-
-  // --- Drop handler (file moves and tab drops) ---
-
-  const handleDropOnDir = useCallback(async (_e: React.DragEvent, targetDir: string) => {
-    const payload = getCurrentDrag();
-    clearCurrentDrag();
-    if (!payload) return;
-
-    if (payload.kind === 'tab') {
-      const tab = tabs.find(t => t.id === payload.tabId);
-      if (!tab) return;
-      const isUntitled = tab.path.startsWith('untitled-');
-      if (isUntitled) {
-        // Save As into target dir
-        if (!isTauri) return;
-        try {
-          const { invoke } = await import('@tauri-apps/api/core');
-          const defaultName = tab.name === 'Untitled' ? 'untitled.txt' : tab.name;
-          // Pass directory and filename SEPARATELY — macOS treats `/` in the filename
-          // field as a literal character (rendered as `:`), so the full path must not be
-          // passed as `defaultName`.
-          const selected = await invoke<string | null>('save_file_dialog', {
-            defaultName,
-            defaultDir: targetDir,
-          });
-          if (!selected) return;
-          const ok = await writeFile(selected, tab.content);
-          if (ok) {
-            const newName = selected.split('/').pop() ?? tab.name;
-            updateTabPath(tab.id, selected, newName);
-            useAppStore.getState().markTabClean(tab.id);
-            await refreshRootForPath(selected);
-          }
-        } catch (err) {
-          console.error('Save As failed:', err);
-        }
-      } else {
-        const newPath = joinPath(targetDir, tab.name);
-        if (newPath === tab.path) return;
-        const ok = await renameEntry(tab.path, newPath);
-        if (ok) {
-          updateTabPath(tab.id, newPath);
-          await refreshRootForPath(tab.path);
-          if (findRootFor(newPath, projectRoots) !== findRootFor(tab.path, projectRoots)) {
-            await refreshRootForPath(newPath);
-          }
-        }
-      }
-      return;
-    }
-
-    // Tree node move (root drags are handled at the wrapper level — ignore here)
-    if (payload.kind !== 'tree') return;
-    const srcPath = payload.path;
-    if (isSelfOrDescendant(srcPath, targetDir)) return;
-    const baseName = srcPath.split('/').pop() ?? '';
-    if (!baseName) return;
-    const newPath = joinPath(targetDir, baseName);
-    if (newPath === srcPath) return;
-    const ok = await renameEntry(srcPath, newPath);
-    if (ok) {
-      const movedTabs = tabs.filter(t => t.path === srcPath || t.path.startsWith(srcPath + '/'));
-      for (const t of movedTabs) {
-        const remainder = t.path === srcPath ? '' : t.path.slice(srcPath.length);
-        updateTabPath(t.id, newPath + remainder);
-      }
-      await refreshRootForPath(srcPath);
-      if (findRootFor(newPath, projectRoots) !== findRootFor(srcPath, projectRoots)) {
-        await refreshRootForPath(newPath);
-      }
-    }
-  }, [tabs, isTauri, writeFile, updateTabPath, refreshRootForPath, renameEntry, projectRoots]);
 
   // --- Context menu ---
 
@@ -737,117 +586,27 @@ export function FileTree() {
       />
 
       {/* Tree */}
-      <div
-        className="flex-1 overflow-y-auto overflow-x-hidden"
-        onDragOver={(e) => {
-          // Container-level dragover handles root reorder: compute insert index based
-          // on cursor Y vs each ROOT HEADER's midpoint (excluding children sub-tree).
-          const payload = getCurrentDrag();
-          if (payload?.kind !== 'root') return;
-          e.preventDefault();
-          e.dataTransfer.dropEffect = 'move';
-          const headers = (e.currentTarget as HTMLElement)
-            .querySelectorAll<HTMLElement>('[data-root-header]');
-          let insertIdx = headers.length; // default: drop at the very end
-          for (let i = 0; i < headers.length; i++) {
-            const rect = headers[i].getBoundingClientRect();
-            if (e.clientY < rect.top + rect.height / 2) {
-              insertIdx = i;
-              break;
-            }
-          }
-          // Update ref synchronously so the drop handler sees the latest value even
-          // if React hasn't flushed the corresponding state update yet.
-          rootDropTargetRef.current = insertIdx;
-          if (insertIdx !== rootDropTarget) setRootDropTarget(insertIdx);
-        }}
-        onDrop={(e) => {
-          const payload = getCurrentDrag();
-          if (payload?.kind !== 'root') return;
-          e.preventDefault();
-          const fromIdx = payload.index;
-          const target = rootDropTargetRef.current;
-          if (target !== null) {
-            // When inserting at insertIdx, removing the source first shifts subsequent
-            // items left, so adjust the destination if the source is BEFORE the target.
-            let to = target;
-            if (fromIdx < to) to -= 1;
-            if (to !== fromIdx && to >= 0) {
-              reorderProjectRoots(fromIdx, to);
-            }
-          }
-          rootDropTargetRef.current = null;
-          setRootDropTarget(null);
-          setRootDragIndex(null);
-          clearCurrentDrag();
-        }}
-      >
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
         {filteredTree.length === 0 ? (
           <div className={`px-3 py-4 text-center text-xs ${textMuted}`}>
             {fileTree.length === 0 ? 'Open a folder to get started' : 'No matching files'}
           </div>
         ) : isMultiRoot ? (
-          <>
-            {filteredTree.map((rootEntry, rootIndex) => {
-              const isDragging = rootDragIndex === rootIndex;
-              const showIndicatorBefore = rootDropTarget === rootIndex;
-              return (
-                <div key={rootEntry.path}>
-                  {showIndicatorBefore && <DropIndicator />}
-                  <div
-                    draggable
-                    onDragStart={(e) => {
-                      // Stop bubbling so children's drag handlers don't run.
-                      e.stopPropagation();
-                      // Clear any stale state from a previous, possibly-cancelled drag.
-                      rootDropTargetRef.current = null;
-                      setRootDropTarget(null);
-                      setRootDragIndex(rootIndex);
-                      setCurrentDrag({ kind: 'root', index: rootIndex });
-                      try { e.dataTransfer.setData('text/plain', rootEntry.path); } catch { /* ignore */ }
-                    }}
-                    onDragEnd={() => {
-                      setRootDragIndex(null);
-                      rootDropTargetRef.current = null;
-                      setRootDropTarget(null);
-                      clearCurrentDrag();
-                    }}
-                    className={`group ${isDragging ? 'opacity-50' : ''}`}
-                  >
-                    <RootHeader
-                      entry={rootEntry}
-                      theme={theme}
-                      dragState={dragState}
-                      onDropOnDir={handleDropOnDir}
-                      onContextMenu={handleContextMenu}
-                      rootIndex={rootIndex}
-                    />
-                    {expandedDirs.has(rootEntry.path) && rootEntry.children && (
-                      <div>
-                        {rootEntry.children
-                          .sort((a, b) => {
-                            if (a.isDir && !b.isDir) return -1;
-                            if (!a.isDir && b.isDir) return 1;
-                            return a.name.localeCompare(b.name);
-                          })
-                          .map(child => (
-                            <TreeNode
-                              key={child.path}
-                              entry={child}
-                              depth={1}
-                              dragState={dragState}
-                              onContextMenu={handleContextMenu}
-                              onDropOnDir={handleDropOnDir}
-                            />
-                          ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-            {rootDropTarget === filteredTree.length && <DropIndicator />}
-          </>
+          <SortableContext
+            items={filteredTree.map((_, i) => encodeDragId({ kind: 'root-drag', index: i }))}
+            strategy={verticalListSortingStrategy}
+          >
+            {filteredTree.map((rootEntry, rootIndex) => (
+              <SortableRoot
+                key={rootEntry.path}
+                entry={rootEntry}
+                rootIndex={rootIndex}
+                theme={theme}
+                expandedDirs={expandedDirs}
+                onContextMenu={handleContextMenu}
+              />
+            ))}
+          </SortableContext>
         ) : (
           // Single root: show children of root directly (root itself shown in header)
           (filteredTree.length === 1 && filteredTree[0].isDir && filteredTree[0].children
@@ -863,9 +622,7 @@ export function FileTree() {
               <TreeNode
                 key={entry.path}
                 entry={entry}
-                dragState={dragState}
                 onContextMenu={handleContextMenu}
-                onDropOnDir={handleDropOnDir}
               />
             ))
         )}
@@ -891,6 +648,91 @@ export function FileTree() {
         }}
         onCancel={() => setPromptDialog(null)}
       />
+    </div>
+  );
+}
+
+// Sortable wrapper for a single project root: the whole block (header + expanded children)
+// is the draggable item. The sub-tree's child TreeNodes use their own useDraggable since
+// they are sortable-independent (we don't reorder within a root — children come from disk).
+function SortableRoot({
+  entry, rootIndex, theme, expandedDirs, onContextMenu,
+}: {
+  entry: FileEntry;
+  rootIndex: number;
+  theme: string;
+  expandedDirs: Set<string>;
+  onContextMenu: (e: React.MouseEvent, entry: FileEntry) => void;
+}) {
+  const dragId = encodeDragId({ kind: 'root-drag', index: rootIndex });
+  const {
+    attributes, listeners, setNodeRef, transform, transition, isDragging,
+  } = useSortable({ id: dragId, data: { kind: 'root-drag', index: rootIndex } });
+
+  // Drop indicator (thin blue line) — sourced from the DndContext directly so it
+  // works regardless of which droppable id wins the collision (sortable's own id
+  // vs RootHeader's `root:<idx>:<path>` droppable id, both registered in this row).
+  const { active, over } = useDndContext();
+  const activeDrag = active ? decodeDragId(active.id as string) : null;
+
+  // Visual policy during root reorder drag:
+  //  - Source row: shown AS-IS (no transform/opacity). DragOverlay provides the
+  //    follow-the-cursor preview; the source staying put is what the user wants.
+  //  - Other rows: NO slide animation — the indicator line marks the drop pos.
+  const isRootReorderActive = activeDrag?.kind === 'root-drag';
+  const style: React.CSSProperties = isRootReorderActive
+    ? {} // freeze layout — no transform/transition during root reorder
+    : { transform: CSS.Transform.toString(transform), transition };
+  const overDrop = over ? (decodeDropId(over.id as string) ?? decodeDragId(over.id as string)) : null;
+  let activeIdx = -1;
+  let overIdx = -1;
+  if (activeDrag?.kind === 'root-drag') {
+    activeIdx = activeDrag.index;
+    if (overDrop && 'kind' in overDrop) {
+      if (overDrop.kind === 'root') overIdx = overDrop.index;
+      else if (overDrop.kind === 'root-drag') overIdx = overDrop.index;
+    }
+  }
+  const isReorderingThisOver = activeIdx >= 0 && overIdx === rootIndex && activeIdx !== overIdx;
+  const indicatorAbove = isReorderingThisOver && activeIdx > overIdx;
+  const indicatorBelow = isReorderingThisOver && activeIdx < overIdx;
+
+  // The whole sortable item must use setNodeRef (so the transform applies),
+  // but the drag handle is ONLY the RootHeader row — child TreeNodes have their
+  // own useDraggable and would otherwise hijack pointer-down events.
+  return (
+    <div ref={setNodeRef} style={style} className="group">
+      {indicatorAbove && <div className="h-0.5 mx-2 my-px rounded bg-blue-500/80" />}
+      <div {...attributes} {...listeners}>
+        <RootHeader
+          entry={entry}
+          theme={theme}
+          onContextMenu={onContextMenu}
+          rootIndex={rootIndex}
+        />
+      </div>
+      {/* "below" indicator sits directly under the header row (not after expanded
+          children) so the line consistently appears at the actual insertion point
+          — between two roots — regardless of expanded state. */}
+      {indicatorBelow && <div className="h-0.5 mx-2 my-px rounded bg-blue-500/80" />}
+      {expandedDirs.has(entry.path) && entry.children && (
+        <div>
+          {entry.children
+            .sort((a, b) => {
+              if (a.isDir && !b.isDir) return -1;
+              if (!a.isDir && b.isDir) return 1;
+              return a.name.localeCompare(b.name);
+            })
+            .map(child => (
+              <TreeNode
+                key={child.path}
+                entry={child}
+                depth={1}
+                onContextMenu={onContextMenu}
+              />
+            ))}
+        </div>
+      )}
     </div>
   );
 }
