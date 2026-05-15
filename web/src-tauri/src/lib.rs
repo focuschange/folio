@@ -196,6 +196,24 @@ pub fn run() {
             ssh_commands::ssh_close_tunnel,
             ssh_commands::ssh_list_tunnels,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            // Handle "Open With Folio" / double-click in Finder.
+            // macOS sends file paths via RunEvent::Opened (Tauri v2).
+            // We emit them on the `file-open-request` channel; the frontend's
+            // App.tsx listener picks them up and calls openFileInEditor /
+            // loadDirectory accordingly.
+            if let tauri::RunEvent::Opened { urls } = event {
+                let paths: Vec<String> = urls
+                    .iter()
+                    .filter_map(|u| u.to_file_path().ok())
+                    .map(|p| p.to_string_lossy().into_owned())
+                    .collect();
+                if !paths.is_empty() {
+                    write_log(&format!("RunEvent::Opened paths={:?}", paths));
+                    let _ = app.emit("file-open-request", paths);
+                }
+            }
+        });
 }

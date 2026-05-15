@@ -39,6 +39,49 @@ function App() {
     }
   }, [loadDirectory]);
 
+  // File-open requests (#124) — macOS "Open With Folio" / Finder double-click.
+  // Rust forwards RunEvent::Opened payloads on this channel as string[] paths.
+  useEffect(() => {
+    const isTauri = '__TAURI_INTERNALS__' in window;
+    if (!isTauri) return;
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [{ listen }, { invoke }] = await Promise.all([
+          import('@tauri-apps/api/event'),
+          import('@tauri-apps/api/core'),
+        ]);
+        const fn = await listen<string[]>('file-open-request', async (event) => {
+          const paths = event.payload;
+          if (!Array.isArray(paths) || paths.length === 0) return;
+          for (const p of paths) {
+            try {
+              const info = await invoke<{ is_dir: boolean; is_file: boolean; name: string }>(
+                'get_file_info',
+                { path: p },
+              );
+              if (info.is_dir) {
+                await loadDirectory(p);
+              } else if (info.is_file) {
+                await openFileInEditor(p, info.name);
+              }
+            } catch (err) {
+              console.error('[file-open-request] failed to handle path', p, err);
+            }
+          }
+        });
+        if (cancelled) fn(); else unlisten = fn;
+      } catch (err) {
+        console.error('[file-open-request] failed to register listener:', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [loadDirectory, openFileInEditor]);
+
   // External file drag&drop (#122) — Finder → Folio.
   // Tauri v2 macOS WKWebView intercepts native drag&drop when
   // `dragDropEnabled: true`. Internal DnD is pointer-event based (#123),
