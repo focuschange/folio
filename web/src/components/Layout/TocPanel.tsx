@@ -39,14 +39,23 @@ export function TocPanel() {
     return parseMarkdownHeadings(activeTab.content);
   }, [activeTab?.content, activeTab?.language]);
 
-  const [currentLine, setCurrentLine] = useState(1);
+  // Viewport range — both start (top) and end (bottom) so we can pick
+  // "first heading inside viewport, fallback to last heading before viewport".
+  const [viewport, setViewport] = useState<{ start: number; end: number }>({ start: 1, end: 1 });
+  // While intent-lock is held, force-activate this line regardless of viewport.
+  const [clickedLine, setClickedLine] = useState<number | null>(null);
   const disposableRef = useRef<{ dispose: () => void } | null>(null);
   const activeItemRef = useRef<HTMLDivElement | null>(null);
+  // Intent-lock: when the user clicks a heading we want THAT heading active,
+  // not whatever ends up at the viewport top after `revealLineInCenter` animates.
+  // While the lock is held (~400ms after click), scroll/cursor updates are ignored.
+  const programmaticUntilRef = useRef<number>(0);
 
   useEffect(() => {
     disposableRef.current?.dispose();
     disposableRef.current = null;
-    setCurrentLine(1);
+    setViewport({ start: 1, end: 1 });
+    setClickedLine(null);
 
     let rafId: number;
 
@@ -58,8 +67,12 @@ export function TocPanel() {
       }
 
       const update = () => {
+        if (Date.now() < programmaticUntilRef.current) return;
         const ranges = editor.getVisibleRanges();
-        if (ranges.length > 0) setCurrentLine(ranges[0].startLineNumber);
+        if (ranges.length > 0) {
+          const r = ranges[0];
+          setViewport({ start: r.startLineNumber, end: r.endLineNumber });
+        }
       };
 
       const cursorDisposable = editor.onDidChangeCursorPosition(update);
@@ -79,15 +92,31 @@ export function TocPanel() {
     };
   }, [activeTabId]);
 
+  // Rule:
+  //  1) If any headings fall within the viewport [start, end], activate the
+  //     topmost one (matches user perception of "the section I'm reading").
+  //  2) Otherwise (only body text visible), activate the last heading before
+  //     viewport start — the section the body belongs to.
+  //  3) `clickedLine` (set by handleClick) takes precedence during the
+  //     intent-lock window so the clicked item wins over scroll updates.
   const activeIdx = useMemo(() => {
     if (headings.length === 0) return -1;
+    if (clickedLine != null) {
+      // exact-match on the clicked heading line
+      const i = headings.findIndex(h => h.line === clickedLine);
+      if (i >= 0) return i;
+    }
+    // Rule 1: first heading inside viewport
+    const insideIdx = headings.findIndex(h => h.line >= viewport.start && h.line <= viewport.end);
+    if (insideIdx >= 0) return insideIdx;
+    // Rule 2: last heading before viewport start
     let idx = -1;
     for (let i = 0; i < headings.length; i++) {
-      if (headings[i].line <= currentLine) idx = i;
+      if (headings[i].line <= viewport.start) idx = i;
       else break;
     }
     return idx;
-  }, [headings, currentLine]);
+  }, [headings, viewport, clickedLine]);
 
   useEffect(() => {
     activeItemRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -100,6 +129,12 @@ export function TocPanel() {
   const activeBorder = theme === 'dark' ? 'border-l-2 border-blue-400' : 'border-l-2 border-blue-500';
 
   const handleClick = (line: number) => {
+    // Lock scroll/cursor-driven updates briefly so the click intent wins
+    // over the upcoming programmatic scroll from revealLineInCenter.
+    programmaticUntilRef.current = Date.now() + 400;
+    setClickedLine(line);
+    // Release the click override after the lock — viewport-based rule resumes.
+    window.setTimeout(() => setClickedLine(null), 450);
     const editor = getMonacoEditorRef();
     if (editor) {
       editor.revealLineInCenter(line);
