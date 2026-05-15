@@ -41,6 +41,30 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
+    ],
+    "fileAssociations": [
+      {
+        "ext": [
+          "txt", "md", "markdown", "mdown", "mkd",
+          "json", "jsonc", "json5",
+          "yaml", "yml", "toml", "ini", "conf", "cfg", "properties", "env",
+          "xml", "html", "htm", "xhtml", "svg",
+          "css", "scss", "sass", "less",
+          "js", "jsx", "ts", "tsx", "mjs", "cjs",
+          "py", "pyw", "rb", "go", "rs", "java", "kt", "kts", "swift",
+          "c", "h", "cpp", "cc", "cxx", "hpp", "hxx", "cs", "m", "mm",
+          "php", "lua", "pl", "r", "scala", "groovy", "dart",
+          "sh", "bash", "zsh", "fish", "ps1", "bat", "cmd",
+          "sql", "graphql", "gql",
+          "log", "csv", "tsv",
+          "gradle", "gitignore", "gitattributes", "dockerfile",
+          "vue", "svelte", "astro"
+        ],
+        "name": "Text Document",
+        "description": "Editable text file",
+        "role": "Editor",
+        "mimeType": "text/plain"
+      }
     ]
   },
   "plugins": {
