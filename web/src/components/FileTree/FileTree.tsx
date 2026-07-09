@@ -306,6 +306,31 @@ export function FileTree() {
 
   const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
+  // Native warning dialog for destructive actions. window.confirm is a no-op
+  // in Tauri's macOS WKWebView, so use the dialog plugin there and fall back
+  // to window.confirm in plain web mode.
+  const confirmDelete = useCallback(async (message: string): Promise<boolean> => {
+    if (isTauri) {
+      try {
+        const { ask } = await import('@tauri-apps/plugin-dialog');
+        return await ask(message, { title: '삭제', kind: 'warning', okLabel: '삭제', cancelLabel: '취소' });
+      } catch (e) {
+        console.error('confirm dialog failed:', e);
+        return false;
+      }
+    }
+    return window.confirm(message);
+  }, [isTauri]);
+
+  // Close any open editor tabs whose file lives at (or under) the deleted path.
+  const closeTabsUnder = useCallback((path: string) => {
+    const state = useAppStore.getState();
+    const doomed = state.tabs.filter(
+      t => t.path === path || t.path.startsWith(path.endsWith('/') ? path : path + '/'),
+    );
+    for (const t of doomed) state.closeTab(t.id);
+  }, []);
+
   // --- Reveal active tab in tree ---
   // When the active tab changes, expand all ancestor directories so the file
   // becomes visible, mark it as selected, and scroll it into view.
@@ -399,9 +424,12 @@ export function FileTree() {
         { kind: 'separator' },
         {
           kind: 'item', label: '삭제', danger: true, onClick: async () => {
-            if (!window.confirm(`"${entry.name}" 디렉토리를 삭제할까요? (포함된 모든 파일이 삭제됩니다)`)) return;
+            if (!(await confirmDelete(`"${entry.name}" 디렉토리를 삭제할까요?\n포함된 모든 파일이 삭제됩니다.`))) return;
             const ok = await deleteEntry(entry.path);
-            if (ok) await refreshRootForPath(entry.path);
+            if (ok) {
+              closeTabsUnder(entry.path);
+              await refreshRootForPath(entry.path);
+            }
           },
         },
       ];
@@ -466,9 +494,12 @@ export function FileTree() {
       { kind: 'separator' },
       {
         kind: 'item', label: '삭제', danger: true, onClick: async () => {
-          if (!window.confirm(`"${entry.name}" 파일을 삭제할까요?`)) return;
+          if (!(await confirmDelete(`"${entry.name}" 파일을 삭제할까요?`))) return;
           const ok = await deleteEntry(entry.path);
-          if (ok) await refreshRootForPath(entry.path);
+          if (ok) {
+            closeTabsUnder(entry.path);
+            await refreshRootForPath(entry.path);
+          }
         },
       },
     ];
@@ -476,6 +507,7 @@ export function FileTree() {
     isTauri, tabs, projectRoots, refreshDirectory, refreshRootForPath, renameEntry,
     deleteEntry, createFile, createDirectory, writeFile, openFileInEditor,
     updateTabPath, showRightPanelTab, setActiveTab, setSelectedPath, showPrompt,
+    confirmDelete, closeTabsUnder,
   ]);
 
   // --- Filter ---
