@@ -30,7 +30,7 @@ function App() {
   useTheme();
   useSettings();
   useSession();
-  const { loadDirectory, openFolder, writeFile, openFileFromDialog, openFileInEditor } = useFileSystem();
+  const { loadDirectory, openFolder, writeFile, openFileFromDialog, openFileInEditor, refreshDirectory } = useFileSystem();
 
   useEffect(() => {
     const isTauri = '__TAURI_INTERNALS__' in window;
@@ -133,12 +133,23 @@ function App() {
   const openFolderRef = useRef(openFolder);
   const writeFileRef = useRef(writeFile);
   const openFileFromDialogRef = useRef(openFileFromDialog);
+  const refreshDirectoryRef = useRef(refreshDirectory);
   openFolderRef.current = openFolder;
   writeFileRef.current = writeFile;
   openFileFromDialogRef.current = openFileFromDialog;
+  refreshDirectoryRef.current = refreshDirectory;
 
   // Dispatch action by ID (used by both menu events and keyboard shortcuts)
   useEffect(() => {
+    // Refresh the FileTree root containing `path` (no-op if outside all roots).
+    // Needed after Save/Save As create a NEW file so it appears without a manual refresh.
+    const refreshRootForPath = async (path: string) => {
+      const root = useAppStore.getState().projectRoots.find(
+        r => path === r || path.startsWith(r.endsWith('/') ? r : r + '/'),
+      );
+      if (root) await refreshDirectoryRef.current(root);
+    };
+
     const dispatchAction = (id: ActionId) => {
       const store = useAppStore.getState();
       console.log('[action]', id);
@@ -164,8 +175,9 @@ function App() {
             store.updateTabContent(activeTab.id, content);
 
             let savePath = activeTab.path;
+            const isNewFile = savePath.startsWith('untitled-');
             // Untitled file → ask user for path via Save As dialog
-            if (savePath.startsWith('untitled-')) {
+            if (isNewFile) {
               if ('__TAURI_INTERNALS__' in window) {
                 try {
                   const { invoke } = await import('@tauri-apps/api/core');
@@ -201,6 +213,7 @@ function App() {
             const success = await writeFileRef.current(savePath, content);
             if (success) {
               useAppStore.getState().markTabClean(activeTab.id);
+              if (isNewFile) await refreshRootForPath(savePath);
             }
           })();
           break;
@@ -235,6 +248,7 @@ function App() {
                     ? { ...t, path: selected, name: newName, language: newLang, dirty: false }
                     : t),
                 }));
+                await refreshRootForPath(selected);
               }
             } catch (e) {
               console.error('Save As error:', e);
