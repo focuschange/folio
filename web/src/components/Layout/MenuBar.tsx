@@ -35,8 +35,12 @@ export function MenuBar() {
   const tabs = useAppStore(s => s.tabs);
   const activeTabId = useAppStore(s => s.activeTabId);
   const openTab = useAppStore(s => s.openTab);
-  const closeTab = useAppStore(s => s.closeTab);
-  const closeAllTabs = useAppStore(s => s.closeAllTabs);
+  const closeTab = useAppStore(s => s.requestCloseTab);
+  const requestCloseTabs = useAppStore(s => s.requestCloseTabs);
+  const closeAllTabs = useCallback(
+    () => requestCloseTabs(useAppStore.getState().tabs.map(t => t.id)),
+    [requestCloseTabs],
+  );
 
   const activeTab = tabs.find(t => t.id === activeTabId) ?? null;
   const hasActiveTab = !!activeTab;

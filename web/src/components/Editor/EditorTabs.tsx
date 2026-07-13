@@ -16,10 +16,10 @@ export function EditorTabs() {
   const tabs = useAppStore(s => s.tabs);
   const activeTabId = useAppStore(s => s.activeTabId);
   const setActiveTab = useAppStore(s => s.setActiveTab);
-  const closeTab = useAppStore(s => s.closeTab);
+  const closeTab = useAppStore(s => s.requestCloseTab);
   const pinTab = useAppStore(s => s.pinTab);
   const unpinTab = useAppStore(s => s.unpinTab);
-  const closeOtherTabs = useAppStore(s => s.closeOtherTabs);
+  const requestCloseTabs = useAppStore(s => s.requestCloseTabs);
   const setTabEncoding = useAppStore(s => s.setTabEncoding);
   const setTabLanguage = useAppStore(s => s.setTabLanguage);
 
@@ -149,7 +149,12 @@ export function EditorTabs() {
             }}>
               {tab.pinned ? 'Unpin Tab' : 'Pin Tab'}
             </div>
-            <div className={itemClass} onClick={() => { closeOtherTabs(contextMenu.tabId); closeAllMenus(); }}>
+            <div className={itemClass} onClick={() => {
+              const others = tabs.filter(t => t.id !== contextMenu.tabId && !t.pinned).map(t => t.id);
+              setActiveTab(contextMenu.tabId);
+              requestCloseTabs(others);
+              closeAllMenus();
+            }}>
               Close Other Tabs
             </div>
             {!tab.pinned && (

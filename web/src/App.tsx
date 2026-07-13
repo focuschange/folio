@@ -270,7 +270,7 @@ function App() {
           break;
         }
         case 'close-tab':
-          if (store.activeTabId) store.closeTab(store.activeTabId);
+          if (store.activeTabId) store.requestCloseTab(store.activeTabId);
           break;
         case 'settings':
           store.toggleSettings();
@@ -593,7 +593,108 @@ function AppShell() {
       <DragOverlay dropAnimation={null}>
         {activeDragId ? <DragPreview id={activeDragId} /> : null}
       </DragOverlay>
+      <ConfirmCloseDialog />
     </DndContext>
+  );
+}
+
+// Save-confirmation modal shown when closing a dirty tab (save / discard / cancel).
+// In-app modal because the Tauri dialog plugin only supports two buttons.
+// Processes closeGuardQueue one tab at a time.
+function ConfirmCloseDialog() {
+  const theme = useAppStore(s => s.settings.theme);
+  const queue = useAppStore(s => s.closeGuardQueue);
+  const tabs = useAppStore(s => s.tabs);
+  const { writeFile, refreshDirectory } = useFileSystem();
+
+  const tabId = queue[0] ?? null;
+  const tab = tabId ? tabs.find(t => t.id === tabId) : null;
+
+  // Tab vanished while queued (e.g. deleted from tree) → skip it.
+  useEffect(() => {
+    if (tabId && !tab) useAppStore.getState().dequeueCloseGuard();
+  }, [tabId, tab]);
+
+  if (!tab) return null;
+
+  const refreshRootForPath = async (path: string) => {
+    const root = useAppStore.getState().projectRoots.find(
+      r => path === r || path.startsWith(r.endsWith('/') ? r : r + '/'),
+    );
+    if (root) await refreshDirectory(root);
+  };
+
+  const currentContent = async (): Promise<string> => {
+    // The active tab's freshest content lives in the Monaco buffer.
+    if (useAppStore.getState().activeTabId === tab.id) {
+      const { getMonacoEditorRef } = await import('./components/Layout/Toolbar');
+      return getMonacoEditorRef()?.getValue() ?? tab.content;
+    }
+    return tab.content;
+  };
+
+  const handleSave = async () => {
+    const store = useAppStore.getState();
+    const content = await currentContent();
+    let savePath = tab.path;
+    const isNewFile = savePath.startsWith('untitled-');
+    if (isNewFile) {
+      if (!('__TAURI_INTERNALS__' in window)) return;
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const selected = await invoke<string | null>('save_file_dialog', {
+          defaultName: tab.name === 'Untitled' ? 'untitled.txt' : tab.name,
+        });
+        if (!selected) return; // user cancelled the save dialog → keep tab open
+        savePath = selected;
+      } catch (e) {
+        console.error('save dialog error:', e);
+        return;
+      }
+    }
+    const ok = await writeFile(savePath, content);
+    if (!ok) return;
+    store.closeTab(tab.id);
+    store.dequeueCloseGuard();
+    if (isNewFile) await refreshRootForPath(savePath);
+  };
+
+  const handleDiscard = () => {
+    const store = useAppStore.getState();
+    store.closeTab(tab.id);
+    store.dequeueCloseGuard();
+  };
+
+  const handleCancel = () => {
+    useAppStore.getState().clearCloseGuard();
+  };
+
+  const isDark = theme === 'dark';
+  const panel = isDark ? 'bg-zinc-800 border-zinc-600 text-zinc-100' : 'bg-white border-zinc-300 text-zinc-800';
+  const sub = isDark ? 'text-zinc-400' : 'text-zinc-500';
+  const btnBase = 'px-3 py-1.5 rounded-md text-xs font-medium transition-colors';
+  const btnNeutral = isDark ? 'bg-zinc-700 hover:bg-zinc-600 text-zinc-200' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700';
+  const btnDanger = isDark ? 'bg-red-500/20 hover:bg-red-500/30 text-red-300' : 'bg-red-50 hover:bg-red-100 text-red-600';
+  const btnPrimary = 'bg-blue-600 hover:bg-blue-500 text-white';
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40" onClick={handleCancel}>
+      <div
+        className={`w-[380px] rounded-lg border shadow-2xl p-4 ${panel}`}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="text-sm font-semibold mb-1">저장되지 않은 변경사항</div>
+        <div className={`text-xs mb-4 ${sub}`}>
+          "{tab.name}" 의 변경사항을 저장할까요?<br />
+          저장하지 않으면 변경사항이 사라집니다.
+        </div>
+        <div className="flex justify-end gap-2">
+          <button className={`${btnBase} ${btnNeutral}`} onClick={handleCancel}>취소</button>
+          <button className={`${btnBase} ${btnDanger}`} onClick={handleDiscard}>저장 안 함</button>
+          <button className={`${btnBase} ${btnPrimary}`} onClick={handleSave} autoFocus>저장</button>
+        </div>
+      </div>
+    </div>
   );
 }
 

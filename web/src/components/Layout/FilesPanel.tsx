@@ -7,7 +7,7 @@ export function FilesPanel() {
   const tabs = useAppStore(s => s.tabs);
   const activeTabId = useAppStore(s => s.activeTabId);
   const setActiveTab = useAppStore(s => s.setActiveTab);
-  const closeTab = useAppStore(s => s.closeTab);
+  const closeTab = useAppStore(s => s.requestCloseTab);
 
   const textMuted = theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400';
   const hoverBg = theme === 'dark' ? 'hover:bg-zinc-700/50' : 'hover:bg-zinc-100';
