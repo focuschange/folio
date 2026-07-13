@@ -8,7 +8,7 @@ export function Sidebar() {
   const activeTabId = useAppStore(s => s.activeTabId);
   const recentFiles = useAppStore(s => s.recentFiles);
   const setActiveTab = useAppStore(s => s.setActiveTab);
-  const closeTab = useAppStore(s => s.closeTab);
+  const closeTab = useAppStore(s => s.requestCloseTab);
 
   const textMuted = theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400';
   const hoverBg = theme === 'dark' ? 'hover:bg-zinc-700/50' : 'hover:bg-zinc-100';

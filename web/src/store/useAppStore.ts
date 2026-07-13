@@ -70,6 +70,12 @@ interface AppState {
   reorderTabs: (fromIndex: number, toIndex: number) => void;
   closeOtherTabs: (id: string) => void;
   closeAllTabs: () => void;
+  // Close-guard: dirty tabs queue for save-confirmation before closing.
+  closeGuardQueue: string[];
+  requestCloseTab: (id: string) => void;
+  requestCloseTabs: (ids: string[]) => void;
+  dequeueCloseGuard: () => void;
+  clearCloseGuard: () => void;
   updateTabCursor: (id: string, line: number, column: number) => void;
   setTabEncoding: (id: string, encoding: string) => void;
   setTabLanguage: (id: string, language: string) => void;
@@ -275,6 +281,41 @@ export const useAppStore = create<AppState>((set, get) => ({
     })),
 
   closeAllTabs: () => set({ tabs: [], activeTabId: null, openFiles: [] }),
+
+  closeGuardQueue: [],
+
+  requestCloseTab: (id) => {
+    const state = get();
+    const tab = state.tabs.find(t => t.id === id);
+    if (!tab) return;
+    if (tab.dirty) {
+      if (!state.closeGuardQueue.includes(id)) {
+        set({ closeGuardQueue: [...state.closeGuardQueue, id] });
+      }
+    } else {
+      state.closeTab(id);
+    }
+  },
+
+  requestCloseTabs: (ids) => {
+    const state = get();
+    const dirtyIds: string[] = [];
+    for (const id of ids) {
+      const tab = state.tabs.find(t => t.id === id);
+      if (!tab) continue;
+      if (tab.dirty) dirtyIds.push(id);
+      else get().closeTab(id);
+    }
+    if (dirtyIds.length > 0) {
+      const queue = get().closeGuardQueue;
+      set({ closeGuardQueue: [...queue, ...dirtyIds.filter(id => !queue.includes(id))] });
+    }
+  },
+
+  dequeueCloseGuard: () =>
+    set(state => ({ closeGuardQueue: state.closeGuardQueue.slice(1) })),
+
+  clearCloseGuard: () => set({ closeGuardQueue: [] }),
 
   updateTabCursor: (id, line, column) =>
     set(state => ({
