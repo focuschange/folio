@@ -120,6 +120,13 @@ React state + ref 조합으로 드래그 시 정확한 추적:
 | settings_commands | load_settings, save_settings |
 | terminal_commands | run_command |
 
+## Versioning (CalVer)
+- **버전 형식**: `YYYY.M.D` — 릴리스한 날짜 기반 (semver 호환: major=년, minor=월, patch=일). 예: `2026.4.30`
+- **갱신 시점**: release 시에만 수동 갱신. `web/package.json` + `web/src-tauri/tauri.conf.json` 두 곳 동기화 필수
+- **같은 날 재릴리스**: `YYYY.M.D-N` suffix (예: `2026.5.15-2`)
+- **빌드 날짜**: `vite.config.ts` 의 `define.__BUILD_DATE__` 로 빌드 시각 자동 주입 — 수동 관리 금지
+- **표시 위치**: 도움말 > Folio 정보 (버전 + 빌드 날짜)
+
 ## Settings
 설정 파일: `~/.folio/settings.json`
 
