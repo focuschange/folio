@@ -266,7 +266,15 @@ pub fn save_ssh_connections(data: String) -> Result<(), String> {
         .ok_or("No home dir")?
         .join(".folio");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    std::fs::write(dir.join("ssh-connections.json"), data).map_err(|e| e.to_string())
+    let file_path = dir.join("ssh-connections.json");
+    std::fs::write(&file_path, data).map_err(|e| e.to_string())?;
+    // Credentials file — restrict to owner-only (0600), dir to 0700.
+    #[cfg(unix)]
+    {
+        let _ = std::fs::set_permissions(&file_path, std::fs::Permissions::from_mode(0o600));
+        let _ = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700));
+    }
+    Ok(())
 }
 
 // Tunnel stubs (tunnels require background threads; simplified for now)

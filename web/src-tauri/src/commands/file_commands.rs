@@ -9,6 +9,50 @@ pub fn js_log(msg: String) {
     eprintln!("[JS] {}", msg);
 }
 
+// Credential files under ~/.folio that must never be reachable through the
+// generic file commands. Each has a dedicated command (load_ai_config,
+// load_ssh_connections, …) that intentionally withholds secrets — a raw
+// read_file/write_file/delete_file would bypass that protection.
+const PROTECTED_FILES: &[&str] = &[
+    "ai-config.json",
+    "ssh-connections.json",
+    "known_hosts.json",
+    "settings.json",
+    "session.json",
+];
+
+/// True if `path` points at a protected credential file inside ~/.folio.
+/// Compares by resolved parent directory + file name so symlinks and `..`
+/// segments cannot be used to slip past the check, and so paths that do not
+/// exist yet (write/create) are still evaluated.
+fn is_protected_path(path: &str) -> bool {
+    let folio_dir = match dirs::home_dir() {
+        Some(h) => h.join(".folio"),
+        None => return false,
+    };
+    // Resolve the target's parent (the file itself may not exist yet).
+    let p = Path::new(path);
+    let file_name = match p.file_name().and_then(|n| n.to_str()) {
+        Some(n) => n,
+        None => return false,
+    };
+    if !PROTECTED_FILES.contains(&file_name) {
+        return false;
+    }
+    let parent = p.parent().unwrap_or_else(|| Path::new(""));
+    // canonicalize the parent when possible; fall back to the raw parent.
+    let resolved_parent = fs::canonicalize(parent).unwrap_or_else(|_| parent.to_path_buf());
+    let resolved_folio = fs::canonicalize(&folio_dir).unwrap_or(folio_dir);
+    resolved_parent == resolved_folio
+}
+
+fn guard_protected(path: &str) -> Result<(), String> {
+    if is_protected_path(path) {
+        return Err("보호된 자격증명 파일에는 접근할 수 없습니다.".to_string());
+    }
+    Ok(())
+}
+
 #[derive(Serialize, Clone)]
 pub struct FileEntry {
     pub name: String,
@@ -44,6 +88,7 @@ pub struct SearchResult {
 
 #[tauri::command]
 pub fn read_file(path: String) -> Result<String, String> {
+    guard_protected(&path)?;
     let bytes = fs::read(&path).map_err(|e| format!("Failed to read file: {}", e))?;
 
     // Try UTF-8 first
@@ -57,6 +102,7 @@ pub fn read_file(path: String) -> Result<String, String> {
 
 #[tauri::command]
 pub fn write_file(path: String, content: String, _encoding: Option<String>) -> Result<(), String> {
+    guard_protected(&path)?;
     eprintln!("[write_file] called: path={} content_len={}", path, content.len());
     // Ensure parent directory exists
     if let Some(parent) = Path::new(&path).parent() {
@@ -189,11 +235,14 @@ pub fn get_file_info(path: String) -> Result<FileInfo, String> {
 
 #[tauri::command]
 pub fn rename_file(old_path: String, new_path: String) -> Result<(), String> {
+    guard_protected(&old_path)?;
+    guard_protected(&new_path)?;
     fs::rename(&old_path, &new_path).map_err(|e| format!("Failed to rename: {}", e))
 }
 
 #[tauri::command]
 pub fn delete_file(path: String) -> Result<(), String> {
+    guard_protected(&path)?;
     let p = Path::new(&path);
     if p.is_dir() {
         fs::remove_dir_all(&path).map_err(|e| format!("Failed to delete directory: {}", e))
@@ -204,6 +253,7 @@ pub fn delete_file(path: String) -> Result<(), String> {
 
 #[tauri::command]
 pub fn create_file(path: String) -> Result<(), String> {
+    guard_protected(&path)?;
     if let Some(parent) = Path::new(&path).parent() {
         fs::create_dir_all(parent)
             .map_err(|e| format!("Failed to create parent directory: {}", e))?;
