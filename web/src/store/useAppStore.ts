@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { EditorTab, AppSettings, FileEntry, GitStatusEntry, GitLogEntry, SessionState, RightTab, TodoItem, LinkInfo, ChatMessage, SplitDirection } from '../types';
 import { defaultSettings } from '../types';
 import { getLanguageFromPath } from '../utils/languages';
+import { isSensitivePath } from '../utils/sensitivePatterns';
 
 interface AppState {
   // Tabs
@@ -612,15 +613,6 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   getSessionState: () => {
     const s = get();
-    const SENSITIVE_PATTERNS = [
-      /\.env(\.|$)/i,
-      /\.(pem|key|p12|pfx|cert|crt)$/i,
-      /id_(rsa|ed25519|ecdsa|dsa)(\.pub)?$/i,
-      /ai-config\.json$/i,
-      /ssh-connections\.json$/i,
-    ];
-    const isSensitivePath = (path: string) =>
-      SENSITIVE_PATTERNS.some(re => re.test(path));
     return {
       tabs: s.tabs.map(t => ({
         id: t.id,

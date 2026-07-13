@@ -47,4 +47,5 @@ node_modules/
 *.crt
 ai-config.json
 ssh-connections.json
+known_hosts.json
 .folio/
