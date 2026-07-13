@@ -4,6 +4,10 @@ import remarkMath from 'remark-math';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
+// KaTeX stylesheet — required to visually hide the MathML (.katex-mathml)
+// duplicate; without it the raw TeX text renders alongside the formula.
+import 'katex/dist/katex.min.css';
 import { useAppStore } from '../../store/useAppStore';
 import {
   useMemo, forwardRef, useEffect, useState, useRef, useCallback,
@@ -46,6 +50,54 @@ function preprocessImages(content: string, filePath?: string): string {
   return result;
 }
 
+// ─── Sanitization (#125) ─────────────────────────────────────────────────────
+// rehypeRaw renders raw HTML from untrusted markdown files, so it MUST be
+// followed by rehype-sanitize. The default schema blocks script/iframe/embed,
+// strips event handlers, and filters URL protocols; we only extend it to allow
+// the `asset:`/`data:` image sources our preprocessing generates.
+
+// MathML tags KaTeX emits (rehype-katex output). Must be whitelisted so the
+// sanitizer — which runs AFTER katex/highlight — keeps rendered math instead of
+// stripping the tags and leaving the raw TeX annotation text behind (double render).
+const KATEX_TAGS = [
+  'math', 'semantics', 'annotation', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub',
+  'msubsup', 'mfrac', 'msqrt', 'mroot', 'mspace', 'mover', 'munder',
+  'munderover', 'mtable', 'mtr', 'mtd', 'mtext', 'mpadded', 'mphantom',
+  'menclose', 'mstyle', 'merror',
+];
+
+const sanitizeSchema = {
+  ...defaultSchema,
+  tagNames: [...(defaultSchema.tagNames ?? []), ...KATEX_TAGS],
+  protocols: {
+    ...defaultSchema.protocols,
+    src: [...(defaultSchema.protocols?.src ?? []), 'asset', 'data'],
+  },
+  attributes: {
+    ...defaultSchema.attributes,
+    // Allow class/style/aria on any element so KaTeX (.katex*, aria-hidden,
+    // inline style) and highlight.js (.hljs*) render correctly.
+    '*': [
+      ...(defaultSchema.attributes?.['*'] ?? []),
+      'className', 'class', 'style', 'ariaHidden',
+    ],
+    annotation: ['encoding'],
+    math: ['xmlns', 'display'],
+    span: ['className', 'style', 'ariaHidden'],
+    svg: ['xmlns', 'width', 'height', 'viewBox', 'preserveAspectRatio', 'style'],
+    path: ['d'],
+  },
+};
+
+// Scheme whitelist for markdown-native links/images. The identity transform
+// previously used here let `javascript:` links through — never restore it.
+function safeUrlTransform(url: string): string {
+  if (/^(https?|asset|mailto):/i.test(url)) return url;
+  if (/^data:image\//i.test(url)) return url;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(url)) return ''; // any other scheme (javascript:, file:, …)
+  return url; // relative / fragment
+}
+
 // ─── Mermaid Block ────────────────────────────────────────────────────────────
 
 let mermaidIdSeq = 0;
@@ -67,6 +119,7 @@ function MermaidBlock({ code, theme }: MermaidBlockProps) {
     mermaid.initialize({
       startOnLoad: false,
       theme: theme === 'dark' ? 'dark' : 'default',
+      securityLevel: 'strict',
     });
 
     mermaid.render(idRef.current, code).then(({ svg: rendered }) => {
@@ -290,8 +343,8 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
           <div className={`max-w-3xl mx-auto markdown-body ${isLight ? 'markdown-preview-light' : ''}`}>
             <ReactMarkdown
               remarkPlugins={[remarkGfm, remarkMath]}
-              rehypePlugins={[rehypeRaw, rehypeHighlight, rehypeKatex]}
-              urlTransform={(url) => url}
+              rehypePlugins={[rehypeRaw, rehypeHighlight, rehypeKatex, [rehypeSanitize, sanitizeSchema]]}
+              urlTransform={safeUrlTransform}
               components={components}
             >
               {processed}
