@@ -281,6 +281,7 @@ pub fn untitled_dir() -> Result<String, String> {
 
 const SKIP_DIRS: &[&str] = &[".git", "node_modules", "build", "target", "dist", ".next"];
 const MAX_RESULTS: usize = 1000;
+const MAX_SEARCH_FILE_BYTES: u64 = 2 * 1024 * 1024; // 2 MB per-file scan cap
 
 #[tauri::command]
 pub fn search_in_files(
@@ -292,13 +293,11 @@ pub fn search_in_files(
     let mut results: Vec<SearchResult> = Vec::new();
 
     let regex = if use_regex {
-        let pattern = if case_sensitive {
-            regex::Regex::new(&query)
-        } else {
-            regex::RegexBuilder::new(&query)
-                .case_insensitive(true)
-                .build()
-        };
+        // Cap compiled-program size to bound memory on pathological patterns.
+        let pattern = regex::RegexBuilder::new(&query)
+            .case_insensitive(!case_sensitive)
+            .size_limit(10 * (1 << 20)) // 10 MB
+            .build();
         Some(pattern.map_err(|e| format!("Invalid regex: {}", e))?)
     } else {
         None
@@ -359,7 +358,13 @@ fn search_recursive(
             }
             search_recursive(&path, query, query_lower, case_sensitive, regex, results);
         } else if path.is_file() {
-            // Skip binary files by checking extension
+            // Skip very large files to bound memory/CPU (search is best-effort).
+            if let Ok(meta) = fs::metadata(&path) {
+                if meta.len() > MAX_SEARCH_FILE_BYTES {
+                    continue;
+                }
+            }
+            // Non-UTF8 (binary) files fail here and are skipped.
             let content = match fs::read_to_string(&path) {
                 Ok(c) => c,
                 Err(_) => continue,

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
 import { useAppStore } from '../../store/useAppStore';
+import { isSensitivePath, SENSITIVE_PLACEHOLDER } from '../../utils/sensitivePatterns';
 import { Send, Trash2, FileCode2, Loader2, AlertCircle, Settings, Square, Copy, ArrowDownToLine, Check } from 'lucide-react';
 import type { ChatMessage, AiConfig } from '../../types';
 import ReactMarkdown from 'react-markdown';
@@ -249,7 +250,10 @@ export function AiChatPanel() {
     if (mentionBlock) {
       context = mentionBlock;
     } else if (useContext && activeTab) {
-      context = `File: ${activeTab.path}\nLanguage: ${activeTab.language}\n\n${activeTab.content.slice(0, 8000)}`;
+      const body = isSensitivePath(activeTab.path)
+        ? SENSITIVE_PLACEHOLDER
+        : activeTab.content.slice(0, 8000);
+      context = `File: ${activeTab.path}\nLanguage: ${activeTab.language}\n\n${body}`;
     }
 
     if (!isTauri) {

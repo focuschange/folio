@@ -12,6 +12,7 @@
 // Overflow is truncated with a `[...truncated...]` marker.
 
 import type { EditorTab, FileEntry } from '../types';
+import { isSensitivePath, SENSITIVE_PLACEHOLDER } from './sensitivePatterns';
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
@@ -247,14 +248,19 @@ export async function resolveMentions(
     try {
       switch (m.kind) {
         case 'file': {
-          const openTab = params.tabs.find(t => t.path === m.target);
           let content: string;
-          if (openTab) {
-            content = openTab.content;
-          } else if (isTauri) {
-            content = await tauriInvoke<string>('read_file', { path: m.target });
+          if (isSensitivePath(m.target)) {
+            // Never ship credential/secret file contents to an AI provider.
+            content = SENSITIVE_PLACEHOLDER;
           } else {
-            content = '[File read requires Tauri desktop app]';
+            const openTab = params.tabs.find(t => t.path === m.target);
+            if (openTab) {
+              content = openTab.content;
+            } else if (isTauri) {
+              content = await tauriInvoke<string>('read_file', { path: m.target });
+            } else {
+              content = '[File read requires Tauri desktop app]';
+            }
           }
           push(`@file: ${m.target}`, content, langFromPath(m.target));
           break;

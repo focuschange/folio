@@ -123,7 +123,7 @@ export function DocPreviewPanel() {
               src={iframeUrl}
               className="flex-1 border-none"
               title="Doc Preview"
-              sandbox="allow-scripts allow-same-origin allow-popups"
+              sandbox="allow-scripts"
             />
           </div>
         ) : (

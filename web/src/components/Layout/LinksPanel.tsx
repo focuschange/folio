@@ -31,6 +31,12 @@ export function LinksPanel() {
 
   const handleOpenExternal = async (url: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    // Only hand http(s) URLs to the OS opener — file:/custom schemes could
+    // launch arbitrary apps. Anything else is copied instead.
+    if (!/^https?:\/\//i.test(url)) {
+      navigator.clipboard?.writeText(url);
+      return;
+    }
     if ('__TAURI_INTERNALS__' in window) {
       try {
         const { invoke } = await import('@tauri-apps/api/core');

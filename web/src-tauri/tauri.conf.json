@@ -25,10 +25,10 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' ipc: http://ipc.localhost; connect-src 'self' ipc: http://ipc.localhost https://api.anthropic.com https://api.openai.com; img-src 'self' data: asset: http://asset.localhost https: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval'; font-src 'self' data:; worker-src 'self' blob:;",
+      "csp": "default-src 'self' ipc: http://ipc.localhost; connect-src 'self' ipc: http://ipc.localhost; img-src 'self' data: asset: http://asset.localhost https: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval'; font-src 'self' data:; worker-src 'self' blob:;",
       "assetProtocol": {
         "enable": true,
-        "scope": ["$HOME/**", "/tmp/**"]
+        "scope": ["$HOME/**"]
       }
     }
   },

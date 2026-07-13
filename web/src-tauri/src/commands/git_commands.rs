@@ -166,7 +166,9 @@ fn parse_hunk_range(s: &str) -> (u32, u32) {
 
 #[tauri::command]
 pub fn git_add(path: String, files: Vec<String>) -> Result<String, String> {
-    let mut args = vec!["add"];
+    // `--` ensures every following token is treated as a pathspec, not a flag
+    // (prevents a filename like "--force" or "-A" from acting as an option).
+    let mut args = vec!["add", "--"];
     let files_ref: Vec<&str> = files.iter().map(|s| s.as_str()).collect();
     args.extend(files_ref);
     run_git(&args, &path)
