@@ -7,4 +7,8 @@ export default defineConfig({
   server: {
     port: 5173,
   },
+  define: {
+    // Injected at build time; shown in 도움말 > Folio 정보.
+    __BUILD_DATE__: JSON.stringify(new Date().toISOString()),
+  },
 })

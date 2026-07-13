@@ -250,8 +250,31 @@ export function MenuBar() {
     }
   }, [activeTab]);
 
-  const handleAbout = useCallback(() => {
-    alert('Folio\n\n마크다운 지원 텍스트 에디터\nBuilt with Tauri + React');
+  const handleAbout = useCallback(async () => {
+    // Build date is injected by Vite at build time (vite.config.ts `define`).
+    const built = new Date(__BUILD_DATE__);
+    const builtStr = isNaN(built.getTime())
+      ? __BUILD_DATE__
+      : built.toLocaleString('ko-KR', {
+          year: 'numeric', month: 'long', day: 'numeric',
+          hour: '2-digit', minute: '2-digit',
+        });
+    const body = (version: string) =>
+      `버전: ${version}\n빌드: ${builtStr}\n\n마크다운 지원 텍스트 에디터\nBuilt with Tauri + React`;
+    if ('__TAURI_INTERNALS__' in window) {
+      try {
+        const [{ getVersion }, { message }] = await Promise.all([
+          import('@tauri-apps/api/app'),
+          import('@tauri-apps/plugin-dialog'),
+        ]);
+        const version = await getVersion();
+        await message(body(version), { title: 'Folio', kind: 'info' });
+        return;
+      } catch (e) {
+        console.error('About dialog failed:', e);
+      }
+    }
+    alert(`Folio\n\n${body('(dev)')}`);
   }, []);
 
   // --- Menu definitions ---
