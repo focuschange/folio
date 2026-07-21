@@ -7,7 +7,6 @@ import {
   AlignLeft, AlignCenter, AlignRight,
   Code, Minus, ChevronDown,
   Highlighter, Superscript, Subscript,
-  Eye, EyeOff,
   Quote,
   LayoutTemplate,
 } from 'lucide-react';
@@ -15,6 +14,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { getMonacoEditorRef } from '../Layout/Toolbar';
 import { ToolbarButton, ToolbarSeparator } from '../Layout/Toolbar';
 import { MoreMenuDropdown, type MoreMenuItem } from '../Layout/MoreMenuDropdown';
+import { ViewModeSegment } from './ViewModeSegment';
 import * as html from '../../utils/htmlActions';
 
 // --- Heading dropdown ---
@@ -63,8 +63,6 @@ function HeadingDropdown({ onSelect, disabled }: { onSelect: (level: 1|2|3|4|5|6
 interface HtmlEditorToolbarProps {
   theme: string;
   activeTab: boolean;
-  previewVisible: boolean;
-  onTogglePreview: () => void;
 }
 
 interface ItemDef {
@@ -78,7 +76,7 @@ interface ItemDef {
   group?: boolean;
 }
 
-export function HtmlEditorToolbar({ theme, activeTab, previewVisible, onTogglePreview }: HtmlEditorToolbarProps) {
+export function HtmlEditorToolbar({ theme, activeTab }: HtmlEditorToolbarProps) {
   const iconSize = 15;
   const iconColor = theme === 'dark' ? '#a1a1aa' : '#52525b';
   const borderCls = theme === 'dark' ? 'border-zinc-700' : 'border-zinc-200';
@@ -135,17 +133,7 @@ export function HtmlEditorToolbar({ theme, activeTab, previewVisible, onTogglePr
     { id: 'align-center', label: 'Align Center', tooltip: 'Align Center', icon: <AlignCenter size={iconSize} color={iconColor} />, menuIcon: <AlignCenter size={14} />, onClick: handleAlignCenter },
     { id: 'align-right', label: 'Align Right', tooltip: 'Align Right', icon: <AlignRight size={iconSize} color={iconColor} />, menuIcon: <AlignRight size={14} />, onClick: handleAlignRight },
     { id: 'details', label: 'Details/Summary', tooltip: 'Details <details>', icon: <LayoutTemplate size={iconSize} color={iconColor} />, menuIcon: <LayoutTemplate size={14} />, onClick: handleDetails, group: true },
-    {
-      id: 'preview',
-      label: previewVisible ? 'Hide Preview' : 'Show Preview',
-      tooltip: previewVisible ? 'Hide Preview (⌘⇧V)' : 'Show Preview (⌘⇧V)',
-      icon: previewVisible ? <EyeOff size={iconSize} color={iconColor} /> : <Eye size={iconSize} color={iconColor} />,
-      menuIcon: previewVisible ? <EyeOff size={14} /> : <Eye size={14} />,
-      onClick: onTogglePreview,
-      active: previewVisible,
-      group: true,
-    },
-  ], [iconSize, iconColor, previewVisible, onTogglePreview,
+  ], [iconSize, iconColor,
     handleBold, handleItalic, handleUnderline, handleStrikethrough, handleCode,
     handleMark, handleSup, handleSub, handleBlockquote, handleUl, handleOl,
     handleLink, handleImage, handleTable, handleCodeBlock, handleHr,
@@ -230,6 +218,11 @@ export function HtmlEditorToolbar({ theme, activeTab, previewVisible, onTogglePr
         >
           <MoreMenuDropdown disabled={!activeTab} items={moreItems} />
         </div>
+      </div>
+
+      {/* View mode segment — editor / split / preview */}
+      <div className="flex items-center pl-2 shrink-0">
+        <ViewModeSegment theme={theme} />
       </div>
     </div>
   );

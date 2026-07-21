@@ -51,6 +51,9 @@ export type RightTab = 'outline' | 'files' | 'git' | 'info' | 'todos' | 'toc' | 
 
 export type SplitDirection = 'none' | 'horizontal' | 'vertical';
 
+// Markdown/HTML view mode: editor-only, editor+preview split, or preview-only.
+export type ViewMode = 'editor' | 'split' | 'preview';
+
 export interface SshConnection {
   id: string;
   name: string;
@@ -194,6 +197,7 @@ export interface SessionState {
   terminalHeight: number;
   bookmarks?: Record<string, number[]>;
   previewVisible?: boolean;
+  viewMode?: ViewMode;
 }
 
 export const defaultSettings: AppSettings = {
