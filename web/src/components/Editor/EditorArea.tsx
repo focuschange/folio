@@ -8,6 +8,7 @@ import { MarkdownPreview } from '../Markdown/MarkdownPreview';
 import { HtmlPreview } from '../Markdown/HtmlPreview';
 import { isMarkdown, isHtml } from '../../utils/languages';
 import { FileText, FolderOpen, X } from 'lucide-react';
+import { ViewModeSegment } from './ViewModeSegment';
 import { useFileSystem } from '../../hooks/useFileSystem';
 import { useScrollSync } from '../../hooks/useScrollSync';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
@@ -21,7 +22,7 @@ export function EditorArea() {
   const theme = useAppStore(s => s.settings.theme);
   const tabs = useAppStore(s => s.tabs);
   const activeTabId = useAppStore(s => s.activeTabId);
-  const previewVisible = useAppStore(s => s.previewVisible);
+  const viewMode = useAppStore(s => s.viewMode);
   const togglePreview = useAppStore(s => s.togglePreview);
   const splitDirection = useAppStore(s => s.splitDirection);
   const splitTabId = useAppStore(s => s.splitTabId);
@@ -34,13 +35,18 @@ export function EditorArea() {
   // Treat a tab as markdown/html if either the path extension matches OR the
   // explicit `language` is set (covers Untitled tabs without an extension and
   // tabs whose language was changed manually via the status bar).
-  const showMarkdownPreview = activeTab
-    && (isMarkdown(activeTab.path) || activeTab.language === 'markdown')
-    && previewVisible;
-  const showHtmlPreview = activeTab
-    && (isHtml(activeTab.path) || activeTab.language === 'html')
-    && previewVisible;
-  const showPreview = showMarkdownPreview || showHtmlPreview;
+  const isMdOrHtmlTab = !!activeTab
+    && (isMarkdown(activeTab.path) || activeTab.language === 'markdown'
+      || isHtml(activeTab.path) || activeTab.language === 'html');
+  // In 'editor' mode the preview pane is hidden entirely; in 'preview' mode the
+  // editor is hidden and only the preview shows; 'split' shows both.
+  const showEditorPane = viewMode !== 'preview';
+  const showPreviewPane = isMdOrHtmlTab && viewMode !== 'editor';
+  const showMarkdownPreview = showPreviewPane && activeTab
+    && (isMarkdown(activeTab.path) || activeTab.language === 'markdown');
+  const showHtmlPreview = showPreviewPane && activeTab
+    && (isHtml(activeTab.path) || activeTab.language === 'html');
+  const isSplitBoth = showEditorPane && showPreviewPane;
   const isSplit = splitDirection !== 'none' && splitTab;
 
   // Scroll-sync wiring: only enabled when the markdown preview pane is visible
@@ -50,7 +56,8 @@ export function EditorArea() {
   useScrollSync({
     editor: editorInstance,
     previewEl: previewContainerRef.current,
-    enabled: !!showMarkdownPreview && scrollSync,
+    // Only sync when editor + markdown preview are shown side by side.
+    enabled: !!showMarkdownPreview && isSplitBoth && scrollSync,
   });
 
   if (!activeTab) {
@@ -89,24 +96,32 @@ export function EditorArea() {
   const handleResizeHandle = `w-[3px] ${theme === 'dark' ? 'bg-zinc-700 hover:bg-blue-500' : 'bg-zinc-200 hover:bg-blue-400'} transition-colors cursor-col-resize`;
   const handleResizeHandleH = `h-[3px] ${theme === 'dark' ? 'bg-zinc-700 hover:bg-blue-500' : 'bg-zinc-200 hover:bg-blue-400'} transition-colors cursor-row-resize`;
 
+  const previewNode = (
+    <>
+      {showMarkdownPreview && (
+        <MarkdownPreview ref={previewContainerRef} content={activeTab.content} filePath={activeTab.path} />
+      )}
+      {showHtmlPreview && <HtmlPreview content={activeTab.content} />}
+    </>
+  );
+
   const renderMainEditor = () => {
-    if (showPreview) {
+    // Preview-only (editor closed): render the preview full-width.
+    if (!showEditorPane && showPreviewPane) {
+      return <div className="h-full w-full">{previewNode}</div>;
+    }
+    // Editor + preview side by side.
+    if (showEditorPane && showPreviewPane) {
       return (
         <PreviewSplitView
           theme={theme}
           editor={<MonacoWrapper tab={activeTab} onEditorMount={setEditorInstance} />}
-          preview={
-            <>
-              {showMarkdownPreview && (
-                <MarkdownPreview ref={previewContainerRef} content={activeTab.content} filePath={activeTab.path} />
-              )}
-              {showHtmlPreview && <HtmlPreview content={activeTab.content} />}
-            </>
-          }
+          preview={previewNode}
           onClose={togglePreview}
         />
       );
     }
+    // Editor only.
     return <MonacoWrapper tab={activeTab} />;
   };
 
@@ -160,8 +175,6 @@ export function EditorArea() {
         <HtmlEditorToolbar
           theme={theme}
           activeTab={!!activeTab}
-          previewVisible={previewVisible}
-          onTogglePreview={togglePreview}
         />
       )}
       <div className="flex-1 min-h-0">
@@ -232,22 +245,29 @@ function MarkdownEditorToolbar({ theme, activeTab }: { theme: string; activeTab:
 
   return (
     <>
-      <MarkdownToolbarRow
-        activeTab={activeTab}
-        iconSize={iconSize}
-        iconColor={iconColor}
-        borderCls={borderCls}
-        bgCls={bgCls}
-        previewVisible={previewVisible}
-        onHeading={handleHeading}
-        handlers={{
-          handleBold, handleItalic, handleStrikethrough, handleInlineCode,
-          handleBulletList, handleNumberedList, handleTaskList, handleQuote,
-          handleLink, handleImage, handleInsertTable, togglePreview,
-          handleCodeBlock, handleHorizontalRule, handleMathBlock, handleMermaid,
-          handleFootnote, handleIndent, handleOutdent, handleInsertTOC,
-        }}
-      />
+      <div className={`flex items-stretch ${bgCls}`}>
+        <div className="flex-1 min-w-0">
+          <MarkdownToolbarRow
+            activeTab={activeTab}
+            iconSize={iconSize}
+            iconColor={iconColor}
+            borderCls={borderCls}
+            bgCls={bgCls}
+            previewVisible={previewVisible}
+            onHeading={handleHeading}
+            handlers={{
+              handleBold, handleItalic, handleStrikethrough, handleInlineCode,
+              handleBulletList, handleNumberedList, handleTaskList, handleQuote,
+              handleLink, handleImage, handleInsertTable, togglePreview,
+              handleCodeBlock, handleHorizontalRule, handleMathBlock, handleMermaid,
+              handleFootnote, handleIndent, handleOutdent, handleInsertTOC,
+            }}
+          />
+        </div>
+        <div className={`flex items-center px-2 border-b shrink-0 ${borderCls}`}>
+          <ViewModeSegment theme={theme} />
+        </div>
+      </div>
       <ImageInsertDialog
         open={imageDialogOpen}
         onClose={() => setImageDialogOpen(false)}

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { EditorTab, AppSettings, FileEntry, GitStatusEntry, GitLogEntry, SessionState, RightTab, TodoItem, LinkInfo, ChatMessage, SplitDirection } from '../types';
+import type { EditorTab, AppSettings, FileEntry, GitStatusEntry, GitLogEntry, SessionState, RightTab, TodoItem, LinkInfo, ChatMessage, SplitDirection, ViewMode } from '../types';
 import { defaultSettings } from '../types';
 import { getLanguageFromPath } from '../utils/languages';
 import { isSensitivePath } from '../utils/sensitivePatterns';
@@ -50,7 +50,10 @@ interface AppState {
   splitDirection: SplitDirection;
   splitTabId: string | null;
 
-  // Markdown preview visibility (markdown files only)
+  // Markdown/HTML view mode (markdown/html files only).
+  // `previewVisible` is kept as a derived mirror (viewMode !== 'editor') for
+  // backward compatibility with existing callers/session payloads.
+  viewMode: ViewMode;
   previewVisible: boolean;
 
   // AI Chat
@@ -121,6 +124,7 @@ interface AppState {
   reorderProjectRoots: (fromIndex: number, toIndex: number) => void;
   togglePreview: () => void;
   setPreviewVisible: (v: boolean) => void;
+  setViewMode: (mode: ViewMode) => void;
   toggleSplit: (direction: SplitDirection) => void;
   setSplitTab: (tabId: string | null) => void;
   addChatMessage: (msg: ChatMessage) => void;
@@ -179,6 +183,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   bookmarks: {},
   splitDirection: 'none' as SplitDirection,
   splitTabId: null,
+  viewMode: 'split' as ViewMode,
   previewVisible: true,
   chatMessages: [],
   chatLoading: false,
@@ -513,8 +518,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       return { bookmarks: newBookmarks };
     }),
 
-  togglePreview: () => set(state => ({ previewVisible: !state.previewVisible })),
-  setPreviewVisible: (v) => set({ previewVisible: v }),
+  // ⌘⇧V toggles between editor-only and split. From preview-only, it falls
+  // back to split (bringing the editor back), matching the "toggle preview off"
+  // intent — the editor is always at least visible after a toggle.
+  togglePreview: () => set(state => {
+    const next: ViewMode = state.viewMode === 'split' ? 'editor' : 'split';
+    return { viewMode: next, previewVisible: next !== 'editor' };
+  }),
+  setPreviewVisible: (v) => set(state => {
+    const next: ViewMode = v ? (state.viewMode === 'editor' ? 'split' : state.viewMode) : 'editor';
+    return { viewMode: next, previewVisible: next !== 'editor' };
+  }),
+  setViewMode: (mode) => set({ viewMode: mode, previewVisible: mode !== 'editor' }),
 
   toggleSplit: (direction) => set(state => {
     if (state.splitDirection === direction) {
@@ -608,7 +623,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     rightWidth: session.rightWidth ?? 200,
     terminalHeight: session.terminalHeight ?? 200,
     bookmarks: session.bookmarks ?? {},
-    previewVisible: session.previewVisible ?? true,
+    // Prefer the new viewMode; migrate legacy sessions that only stored
+    // previewVisible (true → split, false → editor).
+    viewMode: session.viewMode ?? ((session.previewVisible ?? true) ? 'split' : 'editor'),
+    previewVisible: session.viewMode ? session.viewMode !== 'editor' : (session.previewVisible ?? true),
   }),
 
   getSessionState: () => {
@@ -639,6 +657,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       rightWidth: s.rightWidth,
       terminalHeight: s.terminalHeight,
       bookmarks: s.bookmarks,
+      viewMode: s.viewMode,
       previewVisible: s.previewVisible,
     };
   },
